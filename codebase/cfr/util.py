@@ -82,8 +82,8 @@ def safe_sqrt(x, lbound=SQRT_CONST):
     ''' Numerically safe version of TensorFlow sqrt '''
     return tf.sqrt(tf.clip_by_value(x, lbound, np.inf))
 
-def lindisc(X,p,t):
-    ''' Linear MMD '''
+def lindisc(X,p,t,weights=None):
+    ''' Linear MMD '''	
 
     it = tf.where(t>0)[:,0]
     ic = tf.where(t<1)[:,0]
@@ -91,8 +91,16 @@ def lindisc(X,p,t):
     Xc = tf.gather(X,ic)
     Xt = tf.gather(X,it)
 
-    mean_control = tf.reduce_mean(Xc,reduction_indices=0)
-    mean_treated = tf.reduce_mean(Xt,reduction_indices=0)
+    if weights is not None:
+	Wc = tf.gather(weights,ic)/(tf.reduce_sum(tf.gather(weights,ic))+tf.constant(1e-7))
+	Wt = tf.gather(weights,it)/(tf.reduce_sum(tf.gather(weights,it))+tf.constant(1e-7))
+
+    if weights is not None:
+	mean_control = tf.reduce_sum(tf.tile(tf.reshape(Wc, shape=(tf.shape(Xc)[0], 1)), multiples=(1, tf.shape(Xc)[1]))*Xc, axis=0)
+	mean_treated = tf.reduce_sum(tf.tile(tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), multiples=(1, tf.shape(Xt)[1]))*Xt, axis=0)
+    else:
+	mean_control = tf.reduce_mean(Xc,reduction_indices=0)
+	mean_treated = tf.reduce_mean(Xt,reduction_indices=0)
 
     c = tf.square(2*p-1)*0.25
     f = tf.sign(p-0.5)
@@ -109,7 +117,7 @@ def diff_list(list1,list2):
             diff_list.append(var)
     return diff_list
     
-def mmd2_lin(X,t,p):
+def mmd2_lin(X,t,p,weights=None):
     ''' Linear MMD '''
 
     it = tf.where(t>0)[:,0]
@@ -118,14 +126,22 @@ def mmd2_lin(X,t,p):
     Xc = tf.gather(X,ic)
     Xt = tf.gather(X,it)
 
-    mean_control = tf.reduce_mean(Xc,reduction_indices=0)
-    mean_treated = tf.reduce_mean(Xt,reduction_indices=0)
+    if weights is not None:
+        Wc = tf.gather(weights,ic)/(tf.reduce_sum(tf.gather(weights,ic))+tf.constant(1e-7))
+        Wt = tf.gather(weights,it)/(tf.reduce_sum(tf.gather(weights,it))+tf.constant(1e-7))
+
+    if weights is not None:
+        mean_control = tf.reduce_sum(tf.tile(tf.reshape(Wc, shape=(tf.shape(Xc)[0], 1)), multiples=(1, tf.shape(Xc)[1]))*Xc, axis=0)
+        mean_treated = tf.reduce_sum(tf.tile(tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), multiples=(1, tf.shape(Xt)[1]))*Xt, axis=0)
+    else:
+        mean_control = tf.reduce_mean(Xc,reduction_indices=0)
+        mean_treated = tf.reduce_mean(Xt,reduction_indices=0)
 
     mmd = tf.reduce_sum(tf.square(2.0*p*mean_treated - 2.0*(1.0-p)*mean_control))
 
     return mmd
 
-def mmd2_rbf(X,t,p,sig):
+def mmd2_rbf(X,t,p,sig,weights=None):
     """ Computes the l2-RBF MMD for X given t """
 
     it = tf.where(t>0)[:,0]
@@ -134,17 +150,31 @@ def mmd2_rbf(X,t,p,sig):
     Xc = tf.gather(X,ic)
     Xt = tf.gather(X,it)
 
+    if weights is not None:
+        Wc = tf.gather(weights,ic)/(tf.reduce_sum(tf.gather(weights,ic))+tf.constant(1e-7))
+        Wt = tf.gather(weights,it)/(tf.reduce_sum(tf.gather(weights,it))+tf.constant(1e-7))
+
     Kcc = tf.exp(-pdist2sq(Xc,Xc)/tf.square(sig))
     Kct = tf.exp(-pdist2sq(Xc,Xt)/tf.square(sig))
     Ktt = tf.exp(-pdist2sq(Xt,Xt)/tf.square(sig))
 
-    m = tf.to_float(tf.shape(Xc)[0])
-    n = tf.to_float(tf.shape(Xt)[0])
+    if weights is not None:
+	Wcc_mask = tf.tile(tf.reshape(Wc, shape=(tf.shape(Xc)[0], 1)), multiples=(1, tf.shape(Xc)[0]))*tf.tile(tf.reshape(Wc, shape=(1, tf.shape(Xc)[0])), multiples=(tf.shape(Xc)[0], 1))
+        Wtt_mask = tf.tile(tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), multiples=(1, tf.shape(Xt)[0]))*tf.tile(tf.reshape(Wt, shape=(1, tf.shape(Xt)[0])), multiples=(tf.shape(Xt)[0], 1))
+        Wct_mask = tf.tile(tf.reshape(Wc, shape=(tf.shape(Xc)[0], 1)), multiples=(1, tf.shape(Xt)[0]))*tf.tile(tf.reshape(Wt, shape=(1, tf.shape(Xt)[0])), multiples=(tf.shape(Xc)[0], 1))
 
-    mmd = tf.square(1.0-p)/(m*(m-1.0))*(tf.reduce_sum(Kcc)-m)
-    mmd = mmd + tf.square(p)/(n*(n-1.0))*(tf.reduce_sum(Ktt)-n)
-    mmd = mmd - 2.0*p*(1.0-p)/(m*n)*tf.reduce_sum(Kct)
-    mmd = 4.0*mmd
+	mmd = tf.square(1.0-p)*(tf.reduce_sum(Kcc*Wcc_mask)-tf.reduce_sum(tf.diag_part(Kcc*Wcc_mask)))/(tf.reduce_sum(Wcc_mask)-tf.reduce_sum(tf.diag_part(Wcc_mask)))
+        mmd = mmd + tf.square(p)*(tf.reduce_sum(Ktt*Wtt_mask)-tf.reduce_sum(tf.diag_part(Ktt*Wtt_mask)))/(tf.reduce_sum(Wtt_mask)-tf.reduce_sum(tf.diag_part(Wtt_mask)))
+	mmd = mmd - 2.0*p*(1.0-p)*(tf.reduce_sum(Kct*Wct_mask))/(tf.reduce_sum(Wct_mask))
+	mmd = 4.0*mmd
+    else:
+	m = tf.to_float(tf.shape(Xc)[0])
+	n = tf.to_float(tf.shape(Xt)[0])
+
+	mmd = tf.square(1.0-p)/(m*(m-1.0))*(tf.reduce_sum(Kcc)-m)
+	mmd = mmd + tf.square(p)/(n*(n-1.0))*(tf.reduce_sum(Ktt)-n)
+	mmd = mmd - 2.0*p*(1.0-p)/(m*n)*tf.reduce_sum(Kct)
+	mmd = 4.0*mmd
 
     return mmd
 
@@ -172,7 +202,7 @@ def pop_dist(X,t):
     M = pdist2(Xt,Xc)
     return M
 
-def wasserstein(X,t,p,lam=10,its=10,sq=False,backpropT=False):
+def wasserstein(X,t,p,lam=10,weights=None,its=10,sq=False,backpropT=False):
     """ Returns the Wasserstein distance between treatment groups """
 
     it = tf.where(t>0)[:,0]
@@ -188,8 +218,16 @@ def wasserstein(X,t,p,lam=10,its=10,sq=False,backpropT=False):
     else:
         M = safe_sqrt(pdist2sq(Xt,Xc))
 
+    if weights is not None:
+        Wc = tf.gather(weights,ic)/(tf.reduce_sum(tf.gather(weights,ic))+tf.constant(1e-7))
+        Wt = tf.gather(weights,it)/(tf.reduce_sum(tf.gather(weights,it))+tf.constant(1e-7))
+	Wtc_mask = tf.tile(tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), multiples=(1, tf.shape(Xc)[0]))*tf.tile(tf.reshape(Wc, shape=(1, tf.shape(Xc)[0])), multiples=(tf.shape(Xt)[0], 1))
+
     ''' Estimate lambda and delta '''
-    M_mean = tf.reduce_mean(M)
+    if weights is not None:
+	M_mean = tf.reduce_sum(M*Wtc_mask)
+    else:
+	M_mean = tf.reduce_mean(M)
     M_drop = tf.nn.dropout(M,10/(nc*nt))
     delta = tf.stop_gradient(tf.reduce_max(M))
     eff_lam = tf.stop_gradient(lam/M_mean)
@@ -202,8 +240,12 @@ def wasserstein(X,t,p,lam=10,its=10,sq=False,backpropT=False):
     Mt = tf.concat([Mt,col], 1)
 
     ''' Compute marginal vectors '''
-    a = tf.concat([p*tf.ones(tf.shape(tf.where(t>0)[:,0:1]))/nt, (1-p)*tf.ones((1,1))], 0)
-    b = tf.concat([(1-p)*tf.ones(tf.shape(tf.where(t<1)[:,0:1]))/nc, p*tf.ones((1,1))], 0)
+    if weights is not None:
+	a = tf.concat([p*tf.ones(tf.shape(tf.where(t>0)[:,0:1]))*tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), (1-p)*tf.ones((1,1))], 0)
+	b = tf.concat([(1-p)*tf.ones(tf.shape(tf.where(t<1)[:,0:1]))*tf.reshape(Wc, shape=(tf.shape(Xc)[0], 1)), p*tf.ones((1,1))], 0)
+    else:
+	a = tf.concat([p*tf.ones(tf.shape(tf.where(t>0)[:,0:1]))/nt, (1-p)*tf.ones((1,1))], 0)
+	b = tf.concat([(1-p)*tf.ones(tf.shape(tf.where(t<1)[:,0:1]))/nc, p*tf.ones((1,1))], 0)
 
     ''' Compute kernel matrix'''
     Mlam = eff_lam*Mt

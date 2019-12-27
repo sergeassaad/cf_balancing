@@ -145,13 +145,19 @@ class cfr_net(object):
             JW = w_t + w_c
             if self.e != None:
                 IPW = 1/(t_sq*self.e + (1-t_sq)*(1-self.e))
+		TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*IPW
                 MW = tf.minimum(self.e, 1-self.e)*IPW
+		OW = (self.e*(1-self.e))*IPW
             if FLAGS.weight_scheme == 'JW':
                 sample_weight = JW
             elif FLAGS.weight_scheme == 'IPW':
                 sample_weight = IPW
+	    elif FLAGS.weight_scheme == 'TruncIPW':
+                sample_weight = TruncIPW
             elif FLAGS.weight_scheme == 'MW':
                 sample_weight = MW
+	    elif FLAGS.weight_scheme == 'OW':
+		sample_weight = OW
             elif FLAGS.weight_scheme == 'JIPW':
                 sample_weight = JW*IPW
             elif FLAGS.weight_scheme =='JMW':
@@ -214,39 +220,71 @@ class cfr_net(object):
         else:
             p_ipm = 0.5
 
-        if FLAGS.imb_fun == 'mmd2_rbf':
-            imb_dist = mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma)
-            imb_error = r_alpha*imb_dist
-        elif FLAGS.imb_fun == 'mmd2_lin':
-            imb_dist = mmd2_lin(h_rep_norm,t,p_ipm)
-            imb_error = r_alpha*mmd2_lin(h_rep_norm,t,p_ipm)
-        elif FLAGS.imb_fun == 'mmd_rbf':
-            imb_dist = tf.abs(mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma))
-            imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
-        elif FLAGS.imb_fun == 'mmd_lin':
-            imb_dist = mmd2_lin(h_rep_norm,t,p_ipm)
-            imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
-        elif FLAGS.imb_fun == 'wass':
-            imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,its=FLAGS.wass_iterations,sq=False,backpropT=FLAGS.wass_bpt)
-            imb_error = r_alpha * imb_dist
-            self.imb_mat = imb_mat # FOR DEBUG
-        elif FLAGS.imb_fun == 'wass2':
-            imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,its=FLAGS.wass_iterations,sq=True,backpropT=FLAGS.wass_bpt)
-            imb_error = r_alpha * imb_dist
-            self.imb_mat = imb_mat # FOR DEBUG
-        elif FLAGS.imb_fun == 'disc' or FLAGS.imb_fun=='weighted_disc':
-            imb_dist = disc_nn.disc
-            imb_error = r_alpha*imb_dist
-        elif FLAGS.imb_fun =='no':
-            imb_dist = tf.constant(0.0)
-            imb_error = tf.constant(0.0)
-        else:
-            imb_dist = lindisc(h_rep_norm,p_ipm,t)
-            imb_error = r_alpha * imb_dist
+	if FLAGS.reweight_imb:
+            if FLAGS.imb_fun == 'mmd2_rbf':
+            	imb_dist = mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma,weights=self.sample_weight)
+            	imb_error = r_alpha*imb_dist
+            elif FLAGS.imb_fun == 'mmd2_lin':
+            	imb_dist = mmd2_lin(h_rep_norm,t,p_ipm,weights=self.sample_weight)
+            	imb_error = r_alpha*mmd2_lin(h_rep_norm,t,p_ipm)
+            elif FLAGS.imb_fun == 'mmd_rbf':
+            	imb_dist = tf.abs(mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma,weights=self.sample_weight))
+            	imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
+            elif FLAGS.imb_fun == 'mmd_lin':
+            	imb_dist = mmd2_lin(h_rep_norm,t,p_ipm,weights=self.sample_weight)
+            	imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
+            elif FLAGS.imb_fun == 'wass':
+            	imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,weights=self.sample_weight,its=FLAGS.wass_iterations,sq=False,backpropT=FLAGS.wass_bpt)
+            	imb_error = r_alpha * imb_dist
+            	self.imb_mat = imb_mat # FOR DEBUG
+            elif FLAGS.imb_fun == 'wass2':
+            	imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,weights=self.sample_weight,its=FLAGS.wass_iterations,sq=True,backpropT=FLAGS.wass_bpt)
+            	imb_error = r_alpha * imb_dist
+            	self.imb_mat = imb_mat # FOR DEBUG
+            elif FLAGS.imb_fun == 'disc' or FLAGS.imb_fun=='weighted_disc':
+            	imb_dist = disc_nn.disc
+            	imb_error = r_alpha*imb_dist
+            elif FLAGS.imb_fun =='no':
+            	imb_dist = tf.constant(0.0)
+            	imb_error = tf.constant(0.0)
+            else:
+            	imb_dist = lindisc(h_rep_norm,p_ipm,t,weights=self.sample_weight)
+            	imb_error = r_alpha * imb_dist
+	else:
+            if FLAGS.imb_fun == 'mmd2_rbf':
+                imb_dist = mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma)
+                imb_error = r_alpha*imb_dist
+            elif FLAGS.imb_fun == 'mmd2_lin':
+                imb_dist = mmd2_lin(h_rep_norm,t,p_ipm)
+                imb_error = r_alpha*mmd2_lin(h_rep_norm,t,p_ipm)
+            elif FLAGS.imb_fun == 'mmd_rbf':
+                imb_dist = tf.abs(mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma))
+                imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
+            elif FLAGS.imb_fun == 'mmd_lin':
+                imb_dist = mmd2_lin(h_rep_norm,t,p_ipm)
+                imb_error = safe_sqrt(tf.square(r_alpha)*imb_dist)
+            elif FLAGS.imb_fun == 'wass':
+                imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,its=FLAGS.wass_iterations,sq=False,backpropT=FLAGS.wass_bpt)
+                imb_error = r_alpha * imb_dist
+                self.imb_mat = imb_mat # FOR DEBUG
+            elif FLAGS.imb_fun == 'wass2':
+                imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,its=FLAGS.wass_iterations,sq=True,backpropT=FLAGS.wass_bpt)
+                imb_error = r_alpha * imb_dist
+                self.imb_mat = imb_mat # FOR DEBUG
+            elif FLAGS.imb_fun == 'disc' or FLAGS.imb_fun=='weighted_disc':
+                imb_dist = disc_nn.disc
+                imb_error = r_alpha*imb_dist
+            elif FLAGS.imb_fun =='no':
+                imb_dist = tf.constant(0.0)
+                imb_error = tf.constant(0.0)
+            else:
+                imb_dist = lindisc(h_rep_norm,p_ipm,t)
+                imb_error = r_alpha * imb_dist
+
 
         ''' Total error '''
         tot_error = risk
-
+	
         if FLAGS.p_alpha>0:
             tot_error = tot_error + imb_error
 

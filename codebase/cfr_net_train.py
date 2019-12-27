@@ -14,13 +14,15 @@ from train_propensity_nn import *
 ''' Define parameter flags '''
 FLAGS = tf.app.flags.FLAGS
 # New flags
-tf.app.flags.DEFINE_string('weight_scheme', 'JW', """JW, IPW, MW, JIPW, JMW, ParetoIPW, JParetoIPW""")
+tf.app.flags.DEFINE_string('weight_scheme', 'JW', """JW, IPW, MW, OW, ParetoIPW, TruncIPW""")
 # tf.app.flags.DEFINE_boolean('use_disc', 0, """Whether to use disc term.""")
 tf.app.flags.DEFINE_integer('n_prop', 1, """Number of propensity arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_prop', 20, """Dim of propensity arch hidden layers""")
 tf.app.flags.DEFINE_integer('n_disc', 0, """Number of disc arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_disc', 20, """Dim of disc arch hidden layers""")
 tf.app.flags.DEFINE_float('drate', 0.05, """Learning rate. """)
+tf.app.flags.DEFINE_boolean('reweight_imb', 1, """Whether to reweight samples for calculating the discrepency. """)
+tf.app.flags.DEFINE_float('trunc_alpha', 0.1, """Truncation threshold for TruncIPW weighting """)
 
 # Old flags
 tf.app.flags.DEFINE_string('loss', 'l2', """Which loss function to use (l1/l2/log)""")
@@ -317,7 +319,7 @@ def run(outdir):
     e = None
     # Define propensity model
     if FLAGS.reweight_sample:
-        if FLAGS.weight_scheme in ["IPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW"]:
+        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW"]:
             # propensity_model = Propensity_NN(D['dim'], FLAGS)
             propensity_model = Propensity_NN(x, t, FLAGS)
             e = propensity_model.e
