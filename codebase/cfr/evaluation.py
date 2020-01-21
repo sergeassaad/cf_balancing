@@ -119,14 +119,12 @@ def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
     eff_pred = eff_pred_t
     eff_nn = eff_nn_t
 
-    '''
     ycf_c = 1.0*y[nn_c]
     eff_nn_c = ycf_c - 1.0*y[Ic]
     eff_pred_c = ycf_p[Ic] - yf_p[Ic]
 
-    eff_pred = np.vstack((eff_pred_t, eff_pred_c))
-    eff_nn = np.vstack((eff_nn_t, eff_nn_c))
-    '''
+    eff_pred = np.concatenate([eff_pred_t, eff_pred_c]) #np.vstack((eff_pred_t, eff_pred_c))
+    eff_nn = np.concatenate([eff_nn_t, eff_nn_c]) #np.vstack((eff_nn_t, eff_nn_c))
 
     pehe_nn = np.sqrt(np.mean(np.square(eff_pred - eff_nn)))
 
@@ -244,7 +242,7 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
             'pehe': pehe, 'rmse_ite': rmse_ite, 'pehe_nn': pehe_appr}
             #'policy_value': policy_value, 'policy_curve': policy_curve}
 
-def evaluate_result(result, data, validation=False,
+def evaluate_result(result, p_alpha, data, validation=False,
         multiple_exps=False, binary=False):
 
     predictions = result['pred']
@@ -314,10 +312,18 @@ def evaluate_result(result, data, validation=False,
 
         if validation:
             objective = np.array([losses[(n_loss_outputs*i)/n_outputs,6,:] for i in range(n_outputs)]).T
+	    imb_loss = np.array([losses[(n_loss_outputs*i)/n_outputs,5,:] for i in range(n_outputs)]).T
+	    loss_diff = p_alpha*imb_loss
+	    reg_loss = objective - loss_diff
         else:
             objective = np.array([losses[(n_loss_outputs*i)/n_outputs,0,:] for i in range(n_outputs)]).T
+            imb_loss = np.array([losses[(n_loss_outputs*i)/n_outputs,3,:] for i in range(n_outputs)]).T
+            loss_diff = p_alpha*imb_loss
+            reg_loss = objective - loss_diff
 
         eval_dict['objective'] = objective
+	eval_dict['reg_loss'] = reg_loss
+	eval_dict['imb_loss'] = imb_loss
 
     return eval_dict
 
@@ -365,14 +371,14 @@ def evaluate(output_dir, data_path_train, data_path_test=None, binary=False, fil
             print 'Evaluating %d...' % (i+1)
 
         try:
-            eval_train = evaluate_result(result['train'], data_train,
+            eval_train = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
                 validation=False, multiple_exps=multiple_exps, binary=binary)
 
-            eval_valid = evaluate_result(result['train'], data_train,
+            eval_valid = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
                 validation=True, multiple_exps=multiple_exps, binary=binary)
 
             if data_test is not None:
-                eval_test = evaluate_result(result['test'], data_test,
+                eval_test = evaluate_result(result['test'], result['config']['p_alpha'], data_test,
                     validation=False, multiple_exps=multiple_exps, binary=binary)
             else:
                 eval_test = None

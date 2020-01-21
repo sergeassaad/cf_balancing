@@ -18,6 +18,7 @@ CONFIG_CRITERION_CONT = 'pehe_nn'
 # CONFIG_CRITERION_CONT = 'objective'
 CORR_CRITERION_CONT = 'pehe'
 CORR_CHOICE_SET_CONT = 'test'
+PARETO_SELECTION = True
 
 EARLY_STOP_SET_BIN = 'valid'
 EARLY_STOP_CRITERION_BIN = 'policy_risk'
@@ -27,6 +28,43 @@ CORR_CRITERION_BIN = 'policy_risk'
 CORR_CHOICE_SET_BIN = 'test'
 
 CURVE_TOP_K = 7
+
+def fast_nondom_sorting(obj_vals, criterion_vals):
+    subs_list = []
+    dom_count_list = []
+    for i in range(len(criterion_vals)):
+	subs = []
+	dom_count = 0
+	for j in range(len(criterion_vals)):
+	    if all(np.less_equal([obj_vals[0][i], obj_vals[1][i]], [obj_vals[0][j], obj_vals[1][j]])) and any(np.less([obj_vals[0][i], obj_vals[1][i]], [obj_vals[0][j], obj_vals[1][j]])): #i dominates j
+		subs.append(j)
+	    elif all(np.less_equal([obj_vals[0][j], obj_vals[1][j]], [obj_vals[0][i], obj_vals[1][i]])) and any(np.less([obj_vals[0][j], obj_vals[1][j]], [obj_vals[0][i], obj_vals[1][i]])): #j dominates i
+		dom_count += 1
+	subs_list.append(subs)
+	dom_count_list.append(dom_count)
+
+    sort_key = []
+    ranks = -np.ones((1, len(criterion_vals)))[0]
+    curr_rank = 1
+    ranks[np.where(np.array(dom_count_list)==0)] = curr_rank
+    curr_front = [idx for idx in range(len(ranks)) if ranks[idx]==curr_rank] #np.argwhere(ranks==curr_rank)
+    sort_key_temp = np.array(curr_front)[np.argsort(np.array(criterion_vals)[np.where(ranks==curr_rank)])]
+    sort_key += list(sort_key_temp)
+    while curr_front:
+	next_front = []
+	for p in curr_front:
+	    for q in subs_list[p]:
+		dom_count_list[q] -= 1
+		if (dom_count_list[q]==0):
+		    ranks[q] = curr_rank + 1
+		    next_front.append(q)
+	curr_rank += 1
+	curr_front = next_front
+	if curr_front:
+	    sort_key_temp = np.array(curr_front)[np.argsort(np.array(criterion_vals)[np.where(ranks==curr_rank)])] #check entire syntax
+	    sort_key += list(sort_key_temp)
+
+    return sort_key
 
 def fix_log_axes(x):
     ax = plt.axes()
@@ -149,7 +187,14 @@ def select_parameters(results, configs, stop_set, stop_criterion, choice_set, ch
 
     labels = ['%d' % i for i in range(len(configs))]
 
-    sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
+    if PARETO_SELECTION:
+	reg_loss_vals = [np.mean(r[choice_set]['reg_loss']) for r in results_all]
+	imb_loss_vals = [np.mean(r[choice_set]['imb_loss']) for r in results_all]
+	loss_vals = [reg_loss_vals, imb_loss_vals]
+	criterion_vals = [np.mean(r[choice_set][choice_criterion]) for r in results_all]
+	sort_key = fast_nondom_sorting(loss_vals, criterion_vals)
+    else:
+	sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
     results_all = [results_all[i] for i in sort_key]
     configs_all = [configs[i] for i in sort_key]
     labels = [labels[i] for i in sort_key]
