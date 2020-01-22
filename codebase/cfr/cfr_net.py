@@ -146,7 +146,7 @@ class cfr_net(object):
             if self.e != None:
                 IPW = 1/(t_sq*self.e + (1-t_sq)*(1-self.e))
                 truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<self.e,self.e<1.0-FLAGS.trunc_alpha),tf.float32)
-		        TruncIPW = truncation*IPW
+                TruncIPW = truncation*IPW
                 MW = tf.minimum(self.e, 1-self.e)*IPW
 		        # OW = (self.e*(1-self.e))*IPW
                 OW = t_sq*(1-self.e) + (1-t_sq)*self.e
@@ -154,12 +154,12 @@ class cfr_net(object):
                 sample_weight = JW
             elif FLAGS.weight_scheme == 'IPW':
                 sample_weight = IPW
-	    elif FLAGS.weight_scheme == 'TruncIPW':
+            elif FLAGS.weight_scheme == 'TruncIPW':
                 sample_weight = TruncIPW
             elif FLAGS.weight_scheme == 'MW':
                 sample_weight = MW
-	    elif FLAGS.weight_scheme == 'OW':
-		sample_weight = OW
+            elif FLAGS.weight_scheme == 'OW':
+                sample_weight = OW
             elif FLAGS.weight_scheme == 'JIPW':
                 sample_weight = JW*IPW
             elif FLAGS.weight_scheme =='JMW':
