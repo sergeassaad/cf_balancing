@@ -110,7 +110,10 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     if (propensity_model):
         propensity_model.train(sess, D, I_valid) 
         propensity_model.saver.restore(sess, propensity_model.save_path)
-        
+
+    # TODO: here, save the propensity model along with the result
+    # TODO: during evaluation, fetch the propensity score model and compute all propensities
+    # TODO: compute all f(x) values, then compute weighted ATE and PEHE values.
     ''' Set up for storing predictions '''
     preds_train = []
     preds_test = []
@@ -221,6 +224,7 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
             y_pred_cf = sess.run(CFR.output, feed_dict={CFR.x: D['x'], \
                 CFR.t: 1-D['t'], CFR.do_in: 1.0, CFR.do_out: 1.0,CFR.p_t:p_treated})
             preds_train.append(np.concatenate((y_pred_f, y_pred_cf),axis=1))
+            # TODO: here, append to e_train via sess.run(e)
 
             if D_test is not None:
                 y_pred_f_test = sess.run(CFR.output, feed_dict={CFR.x: D_test['x'], \
@@ -228,6 +232,7 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                 y_pred_cf_test = sess.run(CFR.output, feed_dict={CFR.x: D_test['x'], \
                     CFR.t: 1-D_test['t'], CFR.do_in: 1.0, CFR.do_out: 1.0})
                 preds_test.append(np.concatenate((y_pred_f_test, y_pred_cf_test),axis=1))
+                # TODO: here, append to e_test via sess.run(e)
 
             if FLAGS.save_rep and i_exp == 1:
                 reps_i = sess.run([CFR.h_rep], feed_dict={CFR.x: D['x'], \
@@ -238,7 +243,7 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                     reps_test_i = sess.run([CFR.h_rep], feed_dict={CFR.x: D_test['x'], \
                         CFR.do_in: 1.0, CFR.do_out: 0.0})
                     reps_test.append(reps_test_i)
-
+    # TODO: here, return e_train and e_test as well
     return losses, preds_train, preds_test, reps, reps_test
 
 def run(outdir):
@@ -380,6 +385,9 @@ def run(outdir):
     all_preds_train = []
     all_preds_test = []
     all_valid = []
+    all_e = []
+    #TODO: here, instantiate all_e and append to it in the loop
+
     if FLAGS.varsel:
         all_weights = None
         all_beta = None
@@ -448,7 +456,11 @@ def run(outdir):
         all_preds_train.append(preds_train)
         all_preds_test.append(preds_test)
         all_losses.append(losses)
+        # TODO:
+        # all_e_train.append(e_train)
+        # all_e_test.append(e_test)
 
+        # TODO: figure out this swapaxes stuff for the e_train and e_test arrays
         ''' Fix shape for output (n_units, dim, n_reps, n_outputs) '''
         out_preds_train = np.swapaxes(np.swapaxes(all_preds_train,1,3),0,2)
         if  has_test:
@@ -476,9 +488,11 @@ def run(outdir):
         if FLAGS.varsel:
             np.savez(npzfile, pred=out_preds_train, loss=out_losses, w=all_weights, beta=all_beta, val=np.array(all_valid))
         else:
+            # TODO: here add e=e_train to the npzfile
             np.savez(npzfile, pred=out_preds_train, loss=out_losses, val=np.array(all_valid))
 
         if has_test:
+            # TODO: here add e=e_test to the npz file
             np.savez(npzfile_test, pred=out_preds_test)
 
         ''' Save representations '''

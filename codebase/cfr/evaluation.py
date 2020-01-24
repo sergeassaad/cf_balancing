@@ -187,7 +187,7 @@ def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
 
 def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     compute_policy_curve=False, nn_t=None, nn_c=None):
-
+    # TODO: take e as an input, index by i_exp
     x = data['x'][:,:,i_exp]
     t = data['t'][:,i_exp]
     yf = data['yf'][:,i_exp]
@@ -198,6 +198,7 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     ycf_p = predictions[:,1]
 
     if not I_subset is None:
+        #TODO: subset e here
         x = x[I_subset,]
         t = t[I_subset]
         yf_p = yf_p[I_subset]
@@ -207,6 +208,7 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
         mu0 = mu0[I_subset]
         mu1 = mu1[I_subset]
 
+    # TODO: finally, with e here, compute all flavors of ATE and PEHE with different f(x) values
     eff = mu1-mu0
 
     rmse_fact = np.sqrt(np.mean(np.square(yf_p-yf)))
@@ -246,6 +248,7 @@ def evaluate_result(result, p_alpha, data, validation=False,
         multiple_exps=False, binary=False):
 
     predictions = result['pred']
+    # TODO: e =  result['e']
 
     if validation:
         I_valid = result['val']
@@ -288,6 +291,7 @@ def evaluate_result(result, p_alpha, data, validation=False,
                 eval_result = evaluate_bin_att(predictions[:,:,i_rep,i_out],
                     data, i_exp, I_valid_rep, compute_policy_curve, nn_t=nn_t, nn_c=nn_c)
             else:
+                # TODO: pass e into eval_cont_ate here
                 eval_result = evaluate_cont_ate(predictions[:,:,i_rep,i_out],
                     data, i_exp, I_valid_rep, compute_policy_curve, nn_t=nn_t, nn_c=nn_c)
 

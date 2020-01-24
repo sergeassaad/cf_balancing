@@ -166,6 +166,15 @@ class cfr_net(object):
                 sample_weight = JW*MW
             elif FLAGS.weight_scheme == 'ParetoIPW':
                 sample_weight,k = Pareto_Smoothing(IPW)
+            elif FLAGS.weight_scheme == 'ParetoMW':
+                par,k = Pareto_Smoothing(IPW)
+                sample_weight = tf.minimum(self.e, 1-self.e)*par
+            elif FLAGS.weight_scheme == 'ParetoOW':
+                par,k = Pareto_Smoothing(IPW)
+                sample_weight = self.e*(1-self.e)*par
+            elif FLAGS.weight_scheme == 'ParetoTruncIPW':
+                par,k = Pareto_Smoothing(IPW)
+                sample_weight = truncation*par
             elif FLAGS.weight_scheme == 'JParetoIPW':
                 parIPW,k = Pareto_Smoothing(IPW)
                 sample_weight= JW*parIPW
