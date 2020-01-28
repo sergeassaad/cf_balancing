@@ -22,9 +22,14 @@ class Propensity_NN:
 
         self.tvars = tf.trainable_variables(scope='t_classifier')
         self.saver = tf.train.Saver(var_list = self.tvars)
+        np.random.seed()
+        rand = np.random.randint(1,100000000)
+        np.random.seed(123)
 
-        ucode = str(time.time()).split('.')[0]
-        self.save_path = "./ckpts/t_prop/t_model_{}.ckpt".format(ucode)
+        ucode = str(time.time()).split('.')[0] + '_' + str(rand)
+        
+        # self.save_path = "./ckpts/t_prop/t_model_{}.ckpt".format(ucode)
+        self.save_path = "/home/serge/Documents/causal/t_prop2/t_model_{}.ckpt".format(ucode)
 
         self.metrics()
         self.define_optimizer()

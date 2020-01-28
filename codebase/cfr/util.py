@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 SQRT_CONST = 1e-10
-
+SMALL = 1e-7
 FLAGS = tf.app.flags.FLAGS
 
 def validation_split(D_exp, val_fraction):
@@ -239,6 +239,7 @@ def wasserstein(X,t,p,lam=10,weights=None,its=10,sq=False,backpropT=False):
     Mt = tf.concat([M,row], 0)
     Mt = tf.concat([Mt,col], 1)
 
+
     ''' Compute marginal vectors '''
     if weights is not None:
 	a = tf.concat([p*tf.ones(tf.shape(tf.where(t>0)[:,0:1]))*tf.reshape(Wt, shape=(tf.shape(Xt)[0], 1)), (1-p)*tf.ones((1,1))], 0)
@@ -313,8 +314,8 @@ def Pareto_parameters(X):
     # Method from Zhang and Stephens to find Generalized Pareto parameters
     # Note: Assumes X is already sorted
     def lik(b):
-        k = -tf.reduce_mean(tf.math.log(1-b*X))
-        return tf.math.log(b/k)+k-1
+        k = -tf.reduce_mean(tf.math.log(1-b*X+SMALL))
+        return tf.math.log(b/(k+SMALL)+SMALL)+k-1
 
     n = tf.shape(X)[0]
     n_float = tf.cast(n,tf.float32)
@@ -323,11 +324,11 @@ def Pareto_parameters(X):
     quartile = tf.cast(tf.math.floor(n_float/4.0 + 0.5),tf.int32)
     X_quartile = X[quartile]
     denom = tf.cast(tf.range(1,m+1),tf.float32)-0.5
-    theta = 1/X[n-1] + (1-tf.math.sqrt(m_float/denom))/(3*X_quartile)
+    theta = 1/X[n-1] + (1-tf.math.sqrt(m_float/denom))/(3*X_quartile+SMALL)
     l = n_float*tf.map_fn(lik,theta)
     w = tf.nn.softmax(tf.gather(l,tf.range(m)))
     theta_new = tf.reduce_sum(theta*w)
-    k_new = -tf.reduce_mean(tf.math.log(1-theta_new*X))
+    k_new = -tf.reduce_mean(tf.math.log(1-theta_new*X+SMALL))
     sigma_new = k_new/theta_new
     return sigma_new,k_new
 
@@ -342,7 +343,7 @@ def Pareto_Smoothing(IPW):
     M_float = tf.math.minimum(tf.math.floor(n_float/5.0),tf.math.floor(3*tf.math.sqrt(n_float)))
     M = tf.cast(M_float,tf.int32)
     order = tf.argsort(IPW)
-    print("IPW shape:",IPW.get_shape())
+    # print("IPW shape:",IPW.get_shape())
     IPW_sorted = tf.gather(IPW,order)
     mu = IPW_sorted[n-M-1]
     head = tf.gather(IPW_sorted,tf.range(n-M))
@@ -350,7 +351,7 @@ def Pareto_Smoothing(IPW):
     sigma,k = Pareto_parameters(tail-mu)
     percentiles = (tf.cast(tf.range(1,M+1),tf.float32)-0.5)/M_float
     smoothed_tail = mu + inverse_generalized_pareto(percentiles,sigma,k)
-    print(head.get_shape(),smoothed_tail.get_shape())
+    # print(head.get_shape(),smoothed_tail.get_shape())
     sorted_smoothed_IPW = tf.concat([head,smoothed_tail],axis=0)
     smoothed_IPW = tf.scatter_nd(tf.expand_dims(order,axis=1),sorted_smoothed_IPW,shape = [n])
     return smoothed_IPW,k

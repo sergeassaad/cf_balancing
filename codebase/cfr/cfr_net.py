@@ -182,8 +182,19 @@ class cfr_net(object):
                 sample_weight = 1.0
         else:
             sample_weight = 1.0
-        
-        self.sample_weight = sample_weight
+
+         #### WARNING: TOGGLE HERE ###########
+        # norm = True
+        if(FLAGS.weight_norm):
+            i0 = tf.to_int32(tf.where(t < 1)[:,0])
+            i1 = tf.to_int32(tf.where(t > 0)[:,0])
+            # TODO: make this cleaner
+            # sum0 = tf.reduce_sum(sample_weight[tf.where(t<1)])
+            # sum1 = tf.reduce_sum(sample_weight[tf.where(t>0)])
+            self.sample_weight = sample_weight*tf.squeeze(tf.squeeze(t)/tf.reduce_sum(tf.gather(sample_weight,i1)) + tf.squeeze(1-t)/tf.reduce_sum(tf.gather(sample_weight,i0)))
+       ###############################
+        else:
+            self.sample_weight = sample_weight
 
         # Define disc network here
         self.disc_acc = None
@@ -207,16 +218,32 @@ class cfr_net(object):
 
         ''' Construct factual loss function '''
         if FLAGS.loss == 'l1':
-            risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+            # risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+            res = tf.abs(y_-y)
+            if(FLAGS.weight_norm):
+                risk = tf.reduce_sum(sample_weight*res)
+            else:
+                risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+                
             pred_error = -tf.reduce_mean(res)
+            
         elif FLAGS.loss == 'log':
             y = 0.995/(1.0+tf.exp(-y)) + 0.0025
             res = y_*tf.log(y) + (1.0-y_)*tf.log(1.0-y)
 
-            risk = -tf.reduce_mean(sample_weight*res)
+            if(FLAGS.weight_norm):
+                risk = -tf.reduce_sum(sample_weight*res)
+            else:
+                risk = -tf.reduce_mean(sample_weight*res)
+            
             pred_error = -tf.reduce_mean(res)
+            
         else:
-            risk = tf.reduce_mean(sample_weight*tf.square(y_ - y))
+            if(FLAGS.weight_norm):
+                risk = tf.reduce_sum(sample_weight*tf.square(y_ - y))
+            else:
+                risk = tf.reduce_mean(sample_weight*tf.square(y_ - y))
+            
             pred_error = tf.sqrt(tf.reduce_mean(tf.square(y_ - y)))
 
         ''' Regularization '''
