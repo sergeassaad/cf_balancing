@@ -116,8 +116,8 @@ def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
     eff_nn_t = ycf_t - 1.0*y[It]
     eff_pred_t = ycf_p[It] - yf_p[It]
 
-    eff_pred = eff_pred_t
-    eff_nn = eff_nn_t
+    # eff_pred = eff_pred_t
+    # eff_nn = eff_nn_t
 
     ycf_c = 1.0*y[nn_c]
     eff_nn_c = ycf_c - 1.0*y[Ic]
@@ -131,7 +131,7 @@ def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
     return pehe_nn
 
 def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
-                     compute_policy_curve=False, nn_t=None, nn_c=None):
+                     compute_policy_curve=False, e=None, nn_t=None, nn_c=None):
 
     x = data['x'][:,:,i_exp]
     t = data['t'][:,i_exp]
@@ -185,9 +185,15 @@ def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
             'policy_value': policy_value, 'policy_risk': 1-policy_value,
             'policy_curve': policy_curve, 'pehe_nn': pehe_appr}
 
+def weight_schemes(e):
+    # TODO: change trunc_alpha to depend on flag
+    trunc_alpha = 0.1
+    return {'IPW':np.ones(e.shape),'OW':e*(1-e),'TIPW':np.logical_and(trunc_alpha<e,e<1.0-trunc_alpha).astype(float),'MW':np.minimum(e,1-e)}
+
 def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
-    compute_policy_curve=False, nn_t=None, nn_c=None):
+    compute_policy_curve=False, e=None, nn_t=None, nn_c=None):
     # TODO: take e as an input, index by i_exp
+    
     x = data['x'][:,:,i_exp]
     t = data['t'][:,i_exp]
     yf = data['yf'][:,i_exp]
@@ -196,9 +202,12 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     mu1 = data['mu1'][:,i_exp]
     yf_p = predictions[:,0]
     ycf_p = predictions[:,1]
-
+    if(e is not None):
+        e_ = e[i_exp]
+    
     if not I_subset is None:
         #TODO: subset e here
+        
         x = x[I_subset,]
         t = t[I_subset]
         yf_p = yf_p[I_subset]
@@ -207,8 +216,19 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
         ycf = ycf[I_subset]
         mu0 = mu0[I_subset]
         mu1 = mu1[I_subset]
+        if(e is not None):
+            e_ = e_[I_subset]
 
     # TODO: finally, with e here, compute all flavors of ATE and PEHE with different f(x) values
+    if(e is not None):
+        # print('Hello!')
+        # print(e.shape)
+        weight_schemes_ = weight_schemes(e_)
+        # for k,v in weight_schemes_.items():
+        #     # print(k,v.shape)
+        #TODO: here, print shape of weight_schemes, and make sure the multiply below works well
+       
+    
     eff = mu1-mu0
 
     rmse_fact = np.sqrt(np.mean(np.square(yf_p-yf)))
@@ -221,6 +241,20 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     ite_pred[t>0] = -ite_pred[t>0]
     rmse_ite = np.sqrt(np.mean(np.square(ite_pred-eff)))
 
+    # TODO: here, weight eff_pred by different weight schemes
+    if(e is not None):
+        weighted_ATEs = {}
+        bias_weighted_ATEs = {}
+        for name,w in weight_schemes_.items():
+            # print('w',w.shape)
+            # print('eff_pred',eff_pred.shape )
+            # print('sum w',np.sum(w))
+            weighted_ate_pred = np.sum(w*eff_pred)/np.sum(w)
+            # print(name,weighted_ate_pred)
+            weighted_ATEs['ate_pred_'+name] = weighted_ate_pred
+            bias_weighted_ATEs['bias_ate_'+name] = weighted_ate_pred - np.mean(eff)
+    # print('true ATE',np.mean(eff))
+    # sys.exit()
     ate_pred = np.mean(eff_pred)
     bias_ate = ate_pred-np.mean(eff)
 
@@ -236,19 +270,28 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
 
     # @TODO: Not clear what this is for continuous data
     #policy_value, policy_curve = policy_val(t, yf, eff_pred, compute_policy_curve)
-
-    return {'ate_pred': ate_pred, 'att_pred': att_pred,
+    metrics = {'ate_pred': ate_pred, 'att_pred': att_pred,
             'atc_pred': atc_pred, 'bias_ate': bias_ate,
             'bias_att': bias_att, 'bias_atc': bias_atc,
             'rmse_fact': rmse_fact, 'rmse_cfact': rmse_cfact,
             'pehe': pehe, 'rmse_ite': rmse_ite, 'pehe_nn': pehe_appr}
-            #'policy_value': policy_value, 'policy_curve': policy_curve}
+    #'policy_value': policy_value, 'policy_curve': policy_curve}
+    
+    if(e is not None):
+        for name,m in weighted_ATEs.items():
+            metrics[name] = m
+        for name,m in bias_weighted_ATEs.items():
+            metrics[name] = m
+    # print(metrics)
+    # sys.exit()
+    return metrics
+            
 
 def evaluate_result(result, p_alpha, data, validation=False,
         multiple_exps=False, binary=False):
 
     predictions = result['pred']
-    # TODO: e =  result['e']
+    e =  result['e']
 
     if validation:
         I_valid = result['val']
@@ -289,11 +332,11 @@ def evaluate_result(result, p_alpha, data, validation=False,
 
             if binary:
                 eval_result = evaluate_bin_att(predictions[:,:,i_rep,i_out],
-                    data, i_exp, I_valid_rep, compute_policy_curve, nn_t=nn_t, nn_c=nn_c)
+                    data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c)
             else:
                 # TODO: pass e into eval_cont_ate here
                 eval_result = evaluate_cont_ate(predictions[:,:,i_rep,i_out],
-                    data, i_exp, I_valid_rep, compute_policy_curve, nn_t=nn_t, nn_c=nn_c)
+                    data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c)
 
             eval_results_out.append(eval_result)
 
@@ -389,9 +432,9 @@ def evaluate(output_dir, data_path_train, data_path_test=None, binary=False, fil
 
             eval_results.append({'train': eval_train, 'valid': eval_valid, 'test': eval_test})
             configs_out.append(configs[i])
-        except NaNException as e:
+        except NaNException as exc:
             print 'WARNING: Encountered NaN exception. Skipping.'
-            print e
+            print exc
 
         i += 1
 

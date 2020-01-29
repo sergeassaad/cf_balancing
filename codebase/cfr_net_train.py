@@ -21,9 +21,10 @@ tf.app.flags.DEFINE_integer('dim_prop', 20, """Dim of propensity arch hidden lay
 tf.app.flags.DEFINE_integer('n_disc', 0, """Number of disc arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_disc', 20, """Dim of disc arch hidden layers""")
 tf.app.flags.DEFINE_float('drate', 0.05, """Learning rate. """)
-tf.app.flags.DEFINE_boolean('reweight_imb', 1, """Whether to reweight samples for calculating the discrepency. """)
+tf.app.flags.DEFINE_boolean('reweight_imb', 0, """Whether to reweight samples for calculating the discrepency. """)
 tf.app.flags.DEFINE_float('trunc_alpha', 0.1, """Truncation threshold for TruncIPW weighting """)
-
+tf.app.flags.DEFINE_boolean('weight_norm', 0, """ Whether to divide by the sum of the weights """)
+tf.app.flags.DEFINE_boolean('use_batches', 1, """ Whether to use batches """)
 # Old flags
 tf.app.flags.DEFINE_string('loss', 'l2', """Which loss function to use (l1/l2/log)""")
 tf.app.flags.DEFINE_integer('n_in', 2, """Number of representation layers. """)
@@ -111,6 +112,9 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
         propensity_model.train(sess, D, I_valid) 
         propensity_model.saver.restore(sess, propensity_model.save_path)
 
+    # after this, propensity score doesn't change - must define e_train, e_test,e_val and pass them outside this function 
+
+
     # TODO: here, save the propensity model along with the result
     # TODO: during evaluation, fetch the propensity score model and compute all propensities
     # TODO: compute all f(x) values, then compute weighted ATE and PEHE values.
@@ -146,10 +150,15 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     for i in range(FLAGS.iterations):
 
         ''' Fetch sample '''
-        I = random.sample(range(0, n_train), FLAGS.batch_size)
-        x_batch = D['x'][I_train,:][I,:]
-        t_batch = D['t'][I_train,:][I]
-        y_batch = D['yf'][I_train,:][I]
+        if(FLAGS.use_batches):
+            I = random.sample(range(0, n_train), FLAGS.batch_size)
+            x_batch = D['x'][I_train,:][I,:]
+            t_batch = D['t'][I_train,:][I]
+            y_batch = D['yf'][I_train,:][I]
+        else:
+            x_batch = D['x'][I_train,:]
+            t_batch = D['t'][I_train,:]
+            y_batch = D['yf'][I_train,:]
 
         if __DEBUG__:
             M = sess.run(cfr.pop_dist(CFR.x, CFR.t), feed_dict={CFR.x: x_batch, CFR.t: t_batch})
@@ -160,7 +169,11 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
             feeds = {CFR.x: x_batch, CFR.t: t_batch, \
                 CFR.y_: y_batch, CFR.do_in: FLAGS.dropout_in, CFR.do_out: FLAGS.dropout_out, \
                 CFR.r_alpha: FLAGS.p_alpha, CFR.r_lambda: FLAGS.p_lambda, CFR.p_t: p_treated}
-
+            
+            # blah = sess.run(CFR.sample_weight,feed_dict=feeds)
+            # print('SUM',np.sum(blah))
+            # print('SHAPE',blah.shape)
+            # sys.exit()
             if FLAGS.imb_fun=='disc' or FLAGS.imb_fun=='weighted_disc':
                 sess.run(disc_step, feed_dict=feeds)
             
@@ -243,8 +256,16 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                     reps_test_i = sess.run([CFR.h_rep], feed_dict={CFR.x: D_test['x'], \
                         CFR.do_in: 1.0, CFR.do_out: 0.0})
                     reps_test.append(reps_test_i)
+    # TODO: figure out which feed_dicts to use                
     # TODO: here, return e_train and e_test as well
-    return losses, preds_train, preds_test, reps, reps_test
+    if(propensity_model):
+        e_train = sess.run(propensity_model.e,feed_dict={CFR.x:D['x']})
+        e_test =  sess.run(propensity_model.e,feed_dict={CFR.x:D_test['x']})
+    else:
+        e_train = None
+        e_test = None
+
+    return losses, preds_train, preds_test, reps, reps_test,e_train,e_test
 
 def run(outdir):
     """ Runs an experiment and stores result in outdir """
@@ -385,7 +406,13 @@ def run(outdir):
     all_preds_train = []
     all_preds_test = []
     all_valid = []
-    all_e = []
+    if(propensity_model):
+        all_e_train= []
+        all_e_test = []
+    else:
+        all_e_train = None
+        all_e_test = None
+
     #TODO: here, instantiate all_e and append to it in the loop
 
     if FLAGS.varsel:
@@ -448,7 +475,7 @@ def run(outdir):
         I_train, I_valid = validation_split(D_exp, FLAGS.val_part)
                 
         ''' Run training loop '''
-        losses, preds_train, preds_test, reps, reps_test = \
+        losses, preds_train, preds_test, reps, reps_test,e_train,e_test = \
             train(CFR, sess, train_step, disc_step, D_exp, I_valid, \
                 D_exp_test, logfile, i_exp, propensity_model)
 
@@ -456,9 +483,9 @@ def run(outdir):
         all_preds_train.append(preds_train)
         all_preds_test.append(preds_test)
         all_losses.append(losses)
-        # TODO:
-        # all_e_train.append(e_train)
-        # all_e_test.append(e_test)
+        if(propensity_model):
+            all_e_train.append(e_train)
+            all_e_test.append(e_test)
 
         # TODO: figure out this swapaxes stuff for the e_train and e_test arrays
         ''' Fix shape for output (n_units, dim, n_reps, n_outputs) '''
@@ -489,11 +516,11 @@ def run(outdir):
             np.savez(npzfile, pred=out_preds_train, loss=out_losses, w=all_weights, beta=all_beta, val=np.array(all_valid))
         else:
             # TODO: here add e=e_train to the npzfile
-            np.savez(npzfile, pred=out_preds_train, loss=out_losses, val=np.array(all_valid))
+            np.savez(npzfile, pred=out_preds_train, loss=out_losses, val=np.array(all_valid),e=all_e_train)
 
         if has_test:
             # TODO: here add e=e_test to the npz file
-            np.savez(npzfile_test, pred=out_preds_test)
+            np.savez(npzfile_test, pred=out_preds_test,e=all_e_test)
 
         ''' Save representations '''
         if FLAGS.save_rep and i_exp == 1:

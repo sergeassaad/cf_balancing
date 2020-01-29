@@ -100,6 +100,6 @@ def run(cfg_file, num_runs, ablation_var1):
 if __name__ == "__main__":
     # if len(sys.argv) < 5:
     if len(sys.argv) < 4:
-        print ('Usage: python cfr_param_search.py <config file> <num runs>')
+        print ('Usage: python cfr_param_search.py <config file> <num runs> <ablation var>')
     else:
         run(sys.argv[1], int(sys.argv[2]),str(sys.argv[3]))
