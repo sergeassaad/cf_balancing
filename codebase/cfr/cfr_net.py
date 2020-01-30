@@ -168,12 +168,19 @@ class cfr_net(object):
                 sample_weight,k = Pareto_Smoothing(IPW)
             elif FLAGS.weight_scheme == 'ParetoMW':
                 par,k = Pareto_Smoothing(IPW)
-                sample_weight = tf.minimum(self.e, 1-self.e)*par
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                sample_weight = tf.minimum(e_smoothed,1-e_smoothed)*par
             elif FLAGS.weight_scheme == 'ParetoOW':
                 par,k = Pareto_Smoothing(IPW)
-                sample_weight = self.e*(1-self.e)*par
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                sample_weight = t_sq*(1-e_smoothed) + (1-t_sq)*e_smoothed
             elif FLAGS.weight_scheme == 'ParetoTruncIPW':
                 par,k = Pareto_Smoothing(IPW)
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<e_smoothed,e_smoothed<1.0-FLAGS.trunc_alpha),tf.float32)
                 sample_weight = truncation*par
             elif FLAGS.weight_scheme == 'JParetoIPW':
                 parIPW,k = Pareto_Smoothing(IPW)

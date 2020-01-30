@@ -23,8 +23,8 @@ tf.app.flags.DEFINE_integer('dim_disc', 20, """Dim of disc arch hidden layers"""
 tf.app.flags.DEFINE_float('drate', 0.05, """Learning rate. """)
 tf.app.flags.DEFINE_boolean('reweight_imb', 0, """Whether to reweight samples for calculating the discrepency. """)
 tf.app.flags.DEFINE_float('trunc_alpha', 0.1, """Truncation threshold for TruncIPW weighting """)
-tf.app.flags.DEFINE_boolean('weight_norm', 0, """ Whether to divide by the sum of the weights """)
-tf.app.flags.DEFINE_boolean('use_batches', 1, """ Whether to use batches """)
+tf.app.flags.DEFINE_integer('weight_norm', 0, """ Whether to divide by the sum of the weights """)
+tf.app.flags.DEFINE_integer('use_batches', 1, """ Whether to use batches """)
 # Old flags
 tf.app.flags.DEFINE_string('loss', 'l2', """Which loss function to use (l1/l2/log)""")
 tf.app.flags.DEFINE_integer('n_in', 2, """Number of representation layers. """)

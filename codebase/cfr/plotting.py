@@ -354,6 +354,8 @@ def plot_evaluation_bin(results, configs, output_dir, data_train_path, data_test
 
     ''' Save sorted configurations by parameters that differ '''
     diff_opts = sorted([k for k in configs[0] if len(set([cfg[k] for cfg in configs]))>1])
+    print('set',set([cfg['weight_norm'] for cfg in configs]))
+    print('diff_opts',diff_opts)
     labels_long = [', '.join(['%s=%s' % (k,str(configs[i][k])) for k in diff_opts]) for i in sort_key]
 
     with open('%s/configs_sorted%s.txt' % (output_dir,filter_str), 'w') as f:
