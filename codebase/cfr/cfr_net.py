@@ -145,9 +145,10 @@ class cfr_net(object):
             JW = w_t + w_c
             if self.e != None:
                 IPW = 1/(t_sq*self.e + (1-t_sq)*(1-self.e))
-		TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*IPW
+		TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*tf.dtypes.cast(tf.math.less(self.e, 1-FLAGS.trunc_alpha), tf.float32)*IPW
                 MW = tf.minimum(self.e, 1-self.e)*IPW
-		OW = (self.e*(1-self.e))*IPW
+		#OW = (self.e*(1-self.e))*IPW
+		OW = t_sq*(1-self.e) + (1-t_sq)*self.e
             if FLAGS.weight_scheme == 'JW':
                 sample_weight = JW
             elif FLAGS.weight_scheme == 'IPW':
