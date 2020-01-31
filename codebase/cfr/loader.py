@@ -149,10 +149,16 @@ def load_data(datapath):
     except:
         print 'Couldn\'t find ground truth. Proceeding...'
         ycfs = None; mu0s = None; mu1s = None
-
-    data = {'x':xs, 't':ts, 'e':es, 'yf':yfs, 'ycf':ycfs, \
+    
+    if ate:
+        data = {'x':xs, 't':ts, 'e':es, 'yf':yfs, 'ycf':ycfs, \
             'mu0':mu0s, 'mu1':mu1s, 'ate':ate, 'YMUL': ymul, \
             'YADD': yadd, 'ATE': ate.tolist(), 'HAVE_TRUTH': HAVE_TRUTH, \
+            'SPARSE': SPARSE}
+    else:
+        data = {'x':xs, 't':ts, 'e':es, 'yf':yfs, 'ycf':ycfs, \
+            'mu0':mu0s, 'mu1':mu1s, 'ate':ate, 'YMUL': ymul, \
+            'YADD': yadd, 'ATE': ate, 'HAVE_TRUTH': HAVE_TRUTH, \
             'SPARSE': SPARSE}
 
     return data
