@@ -345,7 +345,7 @@ def run(outdir):
     e = None
     # Define propensity model
     if FLAGS.reweight_sample:
-        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW"]:
+        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW","ParetoOW"."ParetoMW","ParetoTruncIPW"]:
             # propensity_model = Propensity_NN(D['dim'], FLAGS)
             propensity_model = Propensity_NN(x, t, FLAGS)
             e = propensity_model.e
