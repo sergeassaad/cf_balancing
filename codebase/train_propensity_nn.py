@@ -22,6 +22,7 @@ class Propensity_NN:
 
         self.tvars = tf.trainable_variables(scope='t_classifier')
         self.saver = tf.train.Saver(var_list = self.tvars)
+        self.numiter = FLAGS.iter_prop
         np.random.seed()
         rand = np.random.randint(1,100000000)
         np.random.seed(123)
@@ -82,7 +83,7 @@ class Propensity_NN:
         self.t_acc = (acc1 + acc2)/2
 
 
-    def train(self, sess, D_exp, I_valid, niter=1000):
+    def train(self, sess, D_exp, I_valid):
 
         n = D_exp['x'].shape[0]
         I = range(n); I_train = list(set(I)-set(I_valid))
@@ -102,7 +103,7 @@ class Propensity_NN:
         # save model with the best val performance
         # save the histories of losses, AUCs etc.
         # save weight distributions for samples over time
-        pbar = trange(niter)
+        pbar = trange(FLAGS.iter_prop)
         best_val_loss = np.inf
         for i in pbar:
             _, lt, acc = sess.run([self.t_step, self.t_loss, self.t_acc], feed_dict=feeds_train)

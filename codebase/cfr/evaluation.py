@@ -132,6 +132,8 @@ def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
 
 def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
                      compute_policy_curve=False, e=None, nn_t=None, nn_c=None):
+                     
+    # Note: e here is a subset of the data with random treatment assignment
 
     x = data['x'][:,:,i_exp]
     t = data['t'][:,i_exp]
@@ -174,6 +176,7 @@ def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
 
     lpr = np.log(p1t / p1t_p + 0.001)
 
+    # TODO: check that this is correct - what is e here?
     policy_value, policy_curve = \
         policy_val(t[e>0], yf[e>0], eff_pred[e>0], compute_policy_curve)
 
@@ -245,14 +248,14 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     if(e is not None):
         weighted_ATEs = {}
         bias_weighted_ATEs = {}
+        weighted_PEHEs = {}
         for name,w in weight_schemes_.items():
-            # print('w',w.shape)
-            # print('eff_pred',eff_pred.shape )
-            # print('sum w',np.sum(w))
             weighted_ate_pred = np.sum(w*eff_pred)/np.sum(w)
-            # print(name,weighted_ate_pred)
+            weighted_ate = np.sum(w*eff)/np.sum(w)
+            
             weighted_ATEs['ate_pred_'+name] = weighted_ate_pred
-            bias_weighted_ATEs['bias_ate_'+name] = weighted_ate_pred - np.mean(eff)
+            bias_weighted_ATEs['bias_ate_'+name] = weighted_ate_pred - weighted_ate
+            weighted_PEHEs['pehe_'+name] = np.sqrt(np.sum(w*np.square(eff_pred-eff))/np.sum(w))
     # print('true ATE',np.mean(eff))
     # sys.exit()
     ate_pred = np.mean(eff_pred)
@@ -281,6 +284,8 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
         for name,m in weighted_ATEs.items():
             metrics[name] = m
         for name,m in bias_weighted_ATEs.items():
+            metrics[name] = m
+        for name,m in weighted_PEHEs.items():
             metrics[name] = m
     # print(metrics)
     # sys.exit()

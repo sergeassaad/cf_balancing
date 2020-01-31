@@ -18,6 +18,8 @@ tf.app.flags.DEFINE_string('weight_scheme', 'JW', """JW, IPW, MW, OW, ParetoIPW,
 # tf.app.flags.DEFINE_boolean('use_disc', 0, """Whether to use disc term.""")
 tf.app.flags.DEFINE_integer('n_prop', 1, """Number of propensity arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_prop', 20, """Dim of propensity arch hidden layers""")
+tf.app.flags.DEFINE_integer('iter_prop', 1000, """Dim of propensity arch hidden layers""")
+
 tf.app.flags.DEFINE_integer('n_disc', 0, """Number of disc arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_disc', 20, """Dim of disc arch hidden layers""")
 tf.app.flags.DEFINE_float('drate', 0.05, """Learning rate. """)
@@ -345,7 +347,7 @@ def run(outdir):
     e = None
     # Define propensity model
     if FLAGS.reweight_sample:
-        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW","ParetoOW"."ParetoMW","ParetoTruncIPW"]:
+        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW","ParetoOW","ParetoMW","ParetoTruncIPW"]:
             # propensity_model = Propensity_NN(D['dim'], FLAGS)
             propensity_model = Propensity_NN(x, t, FLAGS)
             e = propensity_model.e

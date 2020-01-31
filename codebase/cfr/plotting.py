@@ -19,7 +19,7 @@ CONFIG_CRITERION_CONT = 'pehe_nn'
 CORR_CRITERION_CONT = 'pehe'
 CORR_CHOICE_SET_CONT = 'test'
 # PARETO_SELECTION = True
-PARETO_SELECTION = False
+PARETO_SELECTION = True
 
 EARLY_STOP_SET_BIN = 'valid'
 EARLY_STOP_CRITERION_BIN = 'policy_risk'
@@ -112,7 +112,7 @@ def table_str_bin(result_set, row_labels, labels_long=None, binary=False):
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
         else:
             cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn',\
-                'bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW']
+                'bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW','pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW']
     else:
         if binary:
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
