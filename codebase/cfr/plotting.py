@@ -18,6 +18,7 @@ CONFIG_CRITERION_CONT = 'pehe_nn'
 # CONFIG_CRITERION_CONT = 'objective'
 CORR_CRITERION_CONT = 'pehe'
 CORR_CHOICE_SET_CONT = 'test'
+# PARETO_SELECTION = True
 PARETO_SELECTION = True
 
 EARLY_STOP_SET_BIN = 'valid'
@@ -104,15 +105,26 @@ def cap(s):
     return t
 
 def table_str_bin(result_set, row_labels, labels_long=None, binary=False):
-    if binary:
-        cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
+    # TODO: here, if e, then add columns for bias_ATE_weighted
+    # TODO: add weighted ATT for binary case
+    if('ate_pred_IPW' in result_set[0]):
+        if binary:
+            cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
+        else:
+            cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn',\
+                'bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW','pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW']
     else:
-        cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn']
+        if binary:
+            cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
+        else:
+            cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn']
 
     cols = [c for c in cols if c in result_set[0]]
-
+    # print(result_set[0])
+    # print(cols)
+    # sys.exit()
     head = [cap(c) for c in cols]
-    colw = np.max([16, np.max([len(h)+1 for h in head])])
+    colw = np.max([8, np.max([len(h)+1 for h in head])])
     col1w = np.max([len(h)+1 for h in row_labels])
 
     def rpad(s):
@@ -130,7 +142,8 @@ def table_str_bin(result_set, row_labels, labels_long=None, binary=False):
         # vals = [np.mean(result_set[i][c]) for c in cols]
         vals = [np.mean(np.abs(result_set[i][c])) for c in cols] # @TODO: np.abs just to make err not bias. change!
         stds = [np.std(result_set[i][c])/np.sqrt(result_set[i][c].shape[0]) for c in cols]
-        val_pad = [r1pad(row_labels[i])] + [rpad('%.3f +/- %.3f ' % (vals[j], stds[j])) for j in range(len(vals))]
+        # val_pad = [r1pad(row_labels[i])] + [rpad('%.3f +/- %.3f ' % (vals[j], stds[j])) for j in range(len(vals))]
+        val_pad = [r1pad(row_labels[i])] + [rpad('%.3f(%.3f)' % (vals[j], stds[j])) for j in range(len(vals))]
         val_str = '| '.join(val_pad)
 
         if labels_long is not None:
@@ -188,13 +201,13 @@ def select_parameters(results, configs, stop_set, stop_criterion, choice_set, ch
     labels = ['%d' % i for i in range(len(configs))]
 
     if PARETO_SELECTION:
-	reg_loss_vals = [np.mean(r[choice_set]['reg_loss']) for r in results_all]
-	imb_loss_vals = [np.mean(r[choice_set]['imb_loss']) for r in results_all]
-	loss_vals = [reg_loss_vals, imb_loss_vals]
-	criterion_vals = [np.mean(r[choice_set][choice_criterion]) for r in results_all]
-	sort_key = fast_nondom_sorting(loss_vals, criterion_vals)
+        reg_loss_vals = [np.mean(r[choice_set]['reg_loss']) for r in results_all]
+        imb_loss_vals = [np.mean(r[choice_set]['imb_loss']) for r in results_all]
+        loss_vals = [reg_loss_vals, imb_loss_vals]
+        criterion_vals = [np.mean(r[choice_set][choice_criterion]) for r in results_all]
+        sort_key = fast_nondom_sorting(loss_vals, criterion_vals)
     else:
-	sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
+        sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
     results_all = [results_all[i] for i in sort_key]
     configs_all = [configs[i] for i in sort_key]
     labels = [labels[i] for i in sort_key]
@@ -341,6 +354,8 @@ def plot_evaluation_bin(results, configs, output_dir, data_train_path, data_test
 
     ''' Save sorted configurations by parameters that differ '''
     diff_opts = sorted([k for k in configs[0] if len(set([cfg[k] for cfg in configs]))>1])
+    print('set',set([cfg['weight_norm'] for cfg in configs]))
+    print('diff_opts',diff_opts)
     labels_long = [', '.join(['%s=%s' % (k,str(configs[i][k])) for k in diff_opts]) for i in sort_key]
 
     with open('%s/configs_sorted%s.txt' % (output_dir,filter_str), 'w') as f:

@@ -18,12 +18,15 @@ tf.app.flags.DEFINE_string('weight_scheme', 'JW', """JW, IPW, MW, OW, ParetoIPW,
 # tf.app.flags.DEFINE_boolean('use_disc', 0, """Whether to use disc term.""")
 tf.app.flags.DEFINE_integer('n_prop', 1, """Number of propensity arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_prop', 20, """Dim of propensity arch hidden layers""")
+tf.app.flags.DEFINE_integer('iter_prop', 1000, """Dim of propensity arch hidden layers""")
+
 tf.app.flags.DEFINE_integer('n_disc', 0, """Number of disc arch hidden layers""")
 tf.app.flags.DEFINE_integer('dim_disc', 20, """Dim of disc arch hidden layers""")
 tf.app.flags.DEFINE_float('drate', 0.05, """Learning rate. """)
-tf.app.flags.DEFINE_boolean('reweight_imb', 1, """Whether to reweight samples for calculating the discrepency. """)
+tf.app.flags.DEFINE_boolean('reweight_imb', 0, """Whether to reweight samples for calculating the discrepency. """)
 tf.app.flags.DEFINE_float('trunc_alpha', 0.1, """Truncation threshold for TruncIPW weighting """)
-
+tf.app.flags.DEFINE_integer('weight_norm', 0, """ Whether to divide by the sum of the weights """)
+tf.app.flags.DEFINE_integer('use_batches', 1, """ Whether to use batches """)
 # Old flags
 tf.app.flags.DEFINE_string('loss', 'l2', """Which loss function to use (l1/l2/log)""")
 tf.app.flags.DEFINE_integer('n_in', 2, """Number of representation layers. """)
@@ -110,7 +113,13 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     if (propensity_model):
         propensity_model.train(sess, D, I_valid) 
         propensity_model.saver.restore(sess, propensity_model.save_path)
-        
+
+    # after this, propensity score doesn't change - must define e_train, e_test,e_val and pass them outside this function 
+
+
+    # TODO: here, save the propensity model along with the result
+    # TODO: during evaluation, fetch the propensity score model and compute all propensities
+    # TODO: compute all f(x) values, then compute weighted ATE and PEHE values.
     ''' Set up for storing predictions '''
     preds_train = []
     preds_test = []
@@ -143,10 +152,15 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     for i in range(FLAGS.iterations):
 
         ''' Fetch sample '''
-        I = random.sample(range(0, n_train), FLAGS.batch_size)
-        x_batch = D['x'][I_train,:][I,:]
-        t_batch = D['t'][I_train,:][I]
-        y_batch = D['yf'][I_train,:][I]
+        if(FLAGS.use_batches):
+            I = random.sample(range(0, n_train), FLAGS.batch_size)
+            x_batch = D['x'][I_train,:][I,:]
+            t_batch = D['t'][I_train,:][I]
+            y_batch = D['yf'][I_train,:][I]
+        else:
+            x_batch = D['x'][I_train,:]
+            t_batch = D['t'][I_train,:]
+            y_batch = D['yf'][I_train,:]
 
         if __DEBUG__:
             M = sess.run(cfr.pop_dist(CFR.x, CFR.t), feed_dict={CFR.x: x_batch, CFR.t: t_batch})
@@ -157,7 +171,11 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
             feeds = {CFR.x: x_batch, CFR.t: t_batch, \
                 CFR.y_: y_batch, CFR.do_in: FLAGS.dropout_in, CFR.do_out: FLAGS.dropout_out, \
                 CFR.r_alpha: FLAGS.p_alpha, CFR.r_lambda: FLAGS.p_lambda, CFR.p_t: p_treated}
-
+            
+            # blah = sess.run(CFR.sample_weight,feed_dict=feeds)
+            # print('SUM',np.sum(blah))
+            # print('SHAPE',blah.shape)
+            # sys.exit()
             if FLAGS.imb_fun=='disc' or FLAGS.imb_fun=='weighted_disc':
                 sess.run(disc_step, feed_dict=feeds)
             
@@ -221,6 +239,7 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
             y_pred_cf = sess.run(CFR.output, feed_dict={CFR.x: D['x'], \
                 CFR.t: 1-D['t'], CFR.do_in: 1.0, CFR.do_out: 1.0,CFR.p_t:p_treated})
             preds_train.append(np.concatenate((y_pred_f, y_pred_cf),axis=1))
+            # TODO: here, append to e_train via sess.run(e)
 
             if D_test is not None:
                 y_pred_f_test = sess.run(CFR.output, feed_dict={CFR.x: D_test['x'], \
@@ -228,6 +247,7 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                 y_pred_cf_test = sess.run(CFR.output, feed_dict={CFR.x: D_test['x'], \
                     CFR.t: 1-D_test['t'], CFR.do_in: 1.0, CFR.do_out: 1.0})
                 preds_test.append(np.concatenate((y_pred_f_test, y_pred_cf_test),axis=1))
+                # TODO: here, append to e_test via sess.run(e)
 
             if FLAGS.save_rep and i_exp == 1:
                 reps_i = sess.run([CFR.h_rep], feed_dict={CFR.x: D['x'], \
@@ -238,8 +258,16 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                     reps_test_i = sess.run([CFR.h_rep], feed_dict={CFR.x: D_test['x'], \
                         CFR.do_in: 1.0, CFR.do_out: 0.0})
                     reps_test.append(reps_test_i)
+    # TODO: figure out which feed_dicts to use                
+    # TODO: here, return e_train and e_test as well
+    if(propensity_model):
+        e_train = sess.run(propensity_model.e,feed_dict={CFR.x:D['x']})
+        e_test =  sess.run(propensity_model.e,feed_dict={CFR.x:D_test['x']})
+    else:
+        e_train = None
+        e_test = None
 
-    return losses, preds_train, preds_test, reps, reps_test
+    return losses, preds_train, preds_test, reps, reps_test,e_train,e_test
 
 def run(outdir):
     """ Runs an experiment and stores result in outdir """
@@ -319,7 +347,7 @@ def run(outdir):
     e = None
     # Define propensity model
     if FLAGS.reweight_sample:
-        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW"]:
+        if FLAGS.weight_scheme in ["IPW","OW","TruncIPW","MW","JIPW","JMW","ParetoIPW","JParetoIPW","ParetoOW","ParetoMW","ParetoTruncIPW"]:
             # propensity_model = Propensity_NN(D['dim'], FLAGS)
             propensity_model = Propensity_NN(x, t, FLAGS)
             e = propensity_model.e
@@ -380,6 +408,15 @@ def run(outdir):
     all_preds_train = []
     all_preds_test = []
     all_valid = []
+    if(propensity_model):
+        all_e_train= []
+        all_e_test = []
+    else:
+        all_e_train = None
+        all_e_test = None
+
+    #TODO: here, instantiate all_e and append to it in the loop
+
     if FLAGS.varsel:
         all_weights = None
         all_beta = None
@@ -440,7 +477,7 @@ def run(outdir):
         I_train, I_valid = validation_split(D_exp, FLAGS.val_part)
                 
         ''' Run training loop '''
-        losses, preds_train, preds_test, reps, reps_test = \
+        losses, preds_train, preds_test, reps, reps_test,e_train,e_test = \
             train(CFR, sess, train_step, disc_step, D_exp, I_valid, \
                 D_exp_test, logfile, i_exp, propensity_model)
 
@@ -448,7 +485,11 @@ def run(outdir):
         all_preds_train.append(preds_train)
         all_preds_test.append(preds_test)
         all_losses.append(losses)
+        if(propensity_model):
+            all_e_train.append(e_train)
+            all_e_test.append(e_test)
 
+        # TODO: figure out this swapaxes stuff for the e_train and e_test arrays
         ''' Fix shape for output (n_units, dim, n_reps, n_outputs) '''
         out_preds_train = np.swapaxes(np.swapaxes(all_preds_train,1,3),0,2)
         if  has_test:
@@ -476,10 +517,12 @@ def run(outdir):
         if FLAGS.varsel:
             np.savez(npzfile, pred=out_preds_train, loss=out_losses, w=all_weights, beta=all_beta, val=np.array(all_valid))
         else:
-            np.savez(npzfile, pred=out_preds_train, loss=out_losses, val=np.array(all_valid))
+            # TODO: here add e=e_train to the npzfile
+            np.savez(npzfile, pred=out_preds_train, loss=out_losses, val=np.array(all_valid),e=all_e_train)
 
         if has_test:
-            np.savez(npzfile_test, pred=out_preds_test)
+            # TODO: here add e=e_test to the npz file
+            np.savez(npzfile_test, pred=out_preds_test,e=all_e_test)
 
         ''' Save representations '''
         if FLAGS.save_rep and i_exp == 1:

@@ -145,26 +145,47 @@ class cfr_net(object):
             JW = w_t + w_c
             if self.e != None:
                 IPW = 1/(t_sq*self.e + (1-t_sq)*(1-self.e))
-		TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*tf.dtypes.cast(tf.math.less(self.e, 1-FLAGS.trunc_alpha), tf.float32)*IPW
+		#TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*tf.dtypes.cast(tf.math.less(self.e, 1-FLAGS.trunc_alpha), tf.float32)*IPW
+                #MW = tf.minimum(self.e, 1-self.e)*IPW
+		##OW = (self.e*(1-self.e))*IPW
+		#OW = t_sq*(1-self.e) + (1-t_sq)*self.e
+                truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<self.e,self.e<1.0-FLAGS.trunc_alpha),tf.float32)
+                TruncIPW = truncation*IPW
                 MW = tf.minimum(self.e, 1-self.e)*IPW
-		#OW = (self.e*(1-self.e))*IPW
-		OW = t_sq*(1-self.e) + (1-t_sq)*self.e
+		# OW = (self.e*(1-self.e))*IPW
+                OW = t_sq*(1-self.e) + (1-t_sq)*self.e
             if FLAGS.weight_scheme == 'JW':
                 sample_weight = JW
             elif FLAGS.weight_scheme == 'IPW':
                 sample_weight = IPW
-	    elif FLAGS.weight_scheme == 'TruncIPW':
+            elif FLAGS.weight_scheme == 'TruncIPW':
                 sample_weight = TruncIPW
             elif FLAGS.weight_scheme == 'MW':
                 sample_weight = MW
-	    elif FLAGS.weight_scheme == 'OW':
-		sample_weight = OW
+            elif FLAGS.weight_scheme == 'OW':
+                sample_weight = OW
             elif FLAGS.weight_scheme == 'JIPW':
                 sample_weight = JW*IPW
             elif FLAGS.weight_scheme =='JMW':
                 sample_weight = JW*MW
             elif FLAGS.weight_scheme == 'ParetoIPW':
                 sample_weight,k = Pareto_Smoothing(IPW)
+            elif FLAGS.weight_scheme == 'ParetoMW':
+                par,k = Pareto_Smoothing(IPW)
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                sample_weight = tf.minimum(e_smoothed,1-e_smoothed)*par
+            elif FLAGS.weight_scheme == 'ParetoOW':
+                par,k = Pareto_Smoothing(IPW)
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                sample_weight = t_sq*(1-e_smoothed) + (1-t_sq)*e_smoothed
+            elif FLAGS.weight_scheme == 'ParetoTruncIPW':
+                par,k = Pareto_Smoothing(IPW)
+                invPareto = 1/par
+                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
+                truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<e_smoothed,e_smoothed<1.0-FLAGS.trunc_alpha),tf.float32)
+                sample_weight = truncation*par
             elif FLAGS.weight_scheme == 'JParetoIPW':
                 parIPW,k = Pareto_Smoothing(IPW)
                 sample_weight= JW*parIPW
@@ -172,8 +193,19 @@ class cfr_net(object):
                 sample_weight = 1.0
         else:
             sample_weight = 1.0
-        
-        self.sample_weight = sample_weight
+
+         #### WARNING: TOGGLE HERE ###########
+        # norm = True
+        if(FLAGS.weight_norm):
+            i0 = tf.to_int32(tf.where(t < 1)[:,0])
+            i1 = tf.to_int32(tf.where(t > 0)[:,0])
+            # TODO: make this cleaner
+            # sum0 = tf.reduce_sum(sample_weight[tf.where(t<1)])
+            # sum1 = tf.reduce_sum(sample_weight[tf.where(t>0)])
+            self.sample_weight = sample_weight*tf.squeeze(tf.squeeze(t)/tf.reduce_sum(tf.gather(sample_weight,i1)) + tf.squeeze(1-t)/tf.reduce_sum(tf.gather(sample_weight,i0)))
+       ###############################
+        else:
+            self.sample_weight = sample_weight
 
         # Define disc network here
         self.disc_acc = None
@@ -197,16 +229,32 @@ class cfr_net(object):
 
         ''' Construct factual loss function '''
         if FLAGS.loss == 'l1':
-            risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+            # risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+            res = tf.abs(y_-y)
+            if(FLAGS.weight_norm):
+                risk = tf.reduce_sum(sample_weight*res)
+            else:
+                risk = tf.reduce_mean(sample_weight*tf.abs(y_-y))
+                
             pred_error = -tf.reduce_mean(res)
+            
         elif FLAGS.loss == 'log':
             y = 0.995/(1.0+tf.exp(-y)) + 0.0025
             res = y_*tf.log(y) + (1.0-y_)*tf.log(1.0-y)
 
-            risk = -tf.reduce_mean(sample_weight*res)
+            if(FLAGS.weight_norm):
+                risk = -tf.reduce_sum(sample_weight*res)
+            else:
+                risk = -tf.reduce_mean(sample_weight*res)
+            
             pred_error = -tf.reduce_mean(res)
+            
         else:
-            risk = tf.reduce_mean(sample_weight*tf.square(y_ - y))
+            if(FLAGS.weight_norm):
+                risk = tf.reduce_sum(sample_weight*tf.square(y_ - y))
+            else:
+                risk = tf.reduce_mean(sample_weight*tf.square(y_ - y))
+            
             pred_error = tf.sqrt(tf.reduce_mean(tf.square(y_ - y)))
 
         ''' Regularization '''
