@@ -103,7 +103,7 @@ class Propensity_NN:
         # save model with the best val performance
         # save the histories of losses, AUCs etc.
         # save weight distributions for samples over time
-        pbar = trange(FLAGS.iter_prop)
+        pbar = trange(self.numiter)
         best_val_loss = np.inf
         for i in pbar:
             _, lt, acc = sess.run([self.t_step, self.t_loss, self.t_acc], feed_dict=feeds_train)
