@@ -29,8 +29,8 @@ class Propensity_NN:
 
         ucode = str(time.time()).split('.')[0] + '_' + str(rand)
         
-	self.save_path = "./ckpts/t_prop/t_model_{}.ckpt".format(ucode)
-        # self.save_path = "/home/serge/Documents/causal/t_prop2/t_model_{}.ckpt".format(ucode)
+	# self.save_path = "./ckpts/t_prop/t_model_{}.ckpt".format(ucode)
+        self.save_path = "/home/serge/Documents/causal/t_prop2/t_model_{}.ckpt".format(ucode)
 
         self.metrics()
         self.define_optimizer()
