@@ -47,6 +47,15 @@ class Propensity_NN:
             # print ("Tpred: " + str(self.t_preds.get_shape()))
             # print ("Tshape: " + str(self.T_ph.get_shape()))
             self.e = tf.nn.sigmoid(self.t_preds)
+	    
+            T_float = tf.squeeze(tf.cast(self.T_ph, tf.float32), axis=1)
+            num_1 = tf.reduce_sum(T_float)
+            num_0 = tf.reduce_sum(1-T_float)
+            num_tot = num_1 + num_0
+	    p_1 = tf.cast(tf.squeeze(num_1/num_tot), tf.float32)
+	    p_0 = tf.cast(tf.squeeze(num_0/num_tot), tf.float32)
+            #self.e = (p_1*self.e)/(p_1*self.e + p_0*(1-self.e)) #corrected for prior probabilities
+
             self.e = tf.stop_gradient(self.e)
  
     def construct_feed_dict(self, x, t):        
