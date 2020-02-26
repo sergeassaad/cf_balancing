@@ -27,6 +27,8 @@ tf.app.flags.DEFINE_boolean('reweight_imb', 0, """Whether to reweight samples fo
 tf.app.flags.DEFINE_float('trunc_alpha', 0.1, """Truncation threshold for TruncIPW weighting """)
 tf.app.flags.DEFINE_integer('weight_norm', 0, """ Whether to divide by the sum of the weights """)
 tf.app.flags.DEFINE_integer('use_batches', 1, """ Whether to use batches """)
+tf.app.flags.DEFINE_integer('balance_batches', 1, """ Whether to balance batches according to overall treat/control ratio""")
+
 # Old flags
 tf.app.flags.DEFINE_string('loss', 'l2', """Which loss function to use (l1/l2/log)""")
 tf.app.flags.DEFINE_integer('n_in', 2, """Number of representation layers. """)
@@ -88,7 +90,16 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     n = D['x'].shape[0]
     I = range(n); I_train = list(set(I)-set(I_valid))
     n_train = len(I_train)
-
+    n_treated = int(np.sum(D['t'][I_train,:]))
+    n_control = n_train-n_treated
+    # print('HELLO_A',len(I_train))
+    # print(np.squeeze(D['t'][I_train]).shape)
+    I_train_np = np.array(I_train)
+    I_treated = I_train_np[np.squeeze(D['t'][I_train])==1]
+    I_control = I_train_np[np.squeeze(D['t'][I_train])==0]
+    # print(I_treated)
+    # print(I_control)
+    # print("HELLO_B",n_treated,n_control,n_train)
     ''' Compute treatment probability'''
     p_treated = np.mean(D['t'][I_train,:])
 
@@ -153,10 +164,35 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
 
         ''' Fetch sample '''
         if(FLAGS.use_batches):
-            I = random.sample(range(0, n_train), FLAGS.batch_size)
-            x_batch = D['x'][I_train,:][I,:]
-            t_batch = D['t'][I_train,:][I]
-            y_batch = D['yf'][I_train,:][I]
+            # TODO: test the below commented code for batch balancing
+            # TODO: save toy datasets for different settings of gamma, confounding (A,B,C)
+            # TODO: think about number of repetitions (maybe 10-20), p=25, N=1000
+            # TODO: fix architecture to 1 layer,
+            if(FLAGS.balance_batches):
+                # construct batches according to overall treatment/control ratio
+                n_treated_batch = int(p_treated*FLAGS.batch_size)
+                n_control_batch = FLAGS.batch_size-n_treated_batch
+                I_treated_batch = random.sample(range(0, n_treated), n_treated_batch)
+                I_control_batch = random.sample(range(0,n_control),n_control_batch)
+                
+                x_batch_treated = D['x'][I_treated,:][I_treated_batch,:]
+                t_batch_treated = D['t'][I_treated,:][I_treated_batch]
+                y_batch_treated = D['yf'][I_treated,:][I_treated_batch]
+                
+                x_batch_control = D['x'][I_control,:][I_control_batch,:]
+                t_batch_control = D['t'][I_control,:][I_control_batch]
+                y_batch_control = D['yf'][I_control,:][I_control_batch]
+                
+                x_batch = np.concatenate([x_batch_treated,x_batch_control],axis=0)
+                t_batch = np.concatenate([t_batch_treated,t_batch_control])
+                y_batch = np.concatenate([y_batch_treated,y_batch_control])
+                # print("HELLO_C",x_batch_treated.shape,x_batch_control.shape,FLAGS.batch_size)
+                # sys.exit()
+            else:
+                I = random.sample(range(0, n_train), FLAGS.batch_size)
+                x_batch = D['x'][I_train,:][I,:]
+                t_batch = D['t'][I_train,:][I]
+                y_batch = D['yf'][I_train,:][I]
         else:
             x_batch = D['x'][I_train,:]
             t_batch = D['t'][I_train,:]
