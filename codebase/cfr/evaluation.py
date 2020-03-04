@@ -306,7 +306,10 @@ def evaluate_result(result, p_alpha, data, validation=False,
         multiple_exps=False, binary=False):
 
     predictions = result['pred']
-    e =  result['e']
+    e = None
+    # print('e' in result)
+    if('e' in result):
+        e =  result['e']
 
     if validation:
         I_valid = result['val']
@@ -445,9 +448,9 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
 
             # Load test data
                 data_path_test = result['config']['datadir']+'/'+result['config']['data_test']
-                    if Log.VERBOSE:
-                        print 'Loading TEST data %s...' % data_path_test
-                    data_test = load_data(data_path_test)
+                if Log.VERBOSE:
+                    print 'Loading TEST data %s...' % data_path_test
+                data_test = load_data(data_path_test)
 
 
             eval_train = evaluate_result(result['train'], result['config']['p_alpha'], data_train,

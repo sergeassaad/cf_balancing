@@ -3,10 +3,12 @@ import numpy as np
 
 from logger import Logger as Log
 
-def load_result_file(file):
+def load_result_file(file,use_e=False):
     arr = np.load(file)
-
-    D = dict([(k, arr[k]) for k in arr.keys()])
+    if(use_e):
+        D = dict([(k, arr[k]) for k in arr.keys()])
+    else:
+        D = dict([(k, arr[k]) for k in arr.keys() if k!='e'])
 
     return D
 
@@ -30,6 +32,7 @@ def load_config(cfgfile):
     return cfg
 
 def load_single_result(result_dir, filters=None):
+    # print(result_dir)
     if Log.VERBOSE:
         print 'Loading %s...' % result_dir
 
@@ -42,8 +45,9 @@ def load_single_result(result_dir, filters=None):
     else:
         config = load_config(config_path)
 
+    # print(config)
     # print (type(config))
-    # print (config['iterations'])
+    
     # sys.exit()
 
     if filters:
@@ -54,18 +58,22 @@ def load_single_result(result_dir, filters=None):
             else:
                 print ('{} not a config key.'.format(k))
 
-
+    
     train_path = '%s/result.npz' % result_dir
     test_path = '%s/result.test.npz' % result_dir
+    # print('TRAIN',train_path)
+    # print('TEST',test_path)
 
     has_test = os.path.isfile(test_path)
 
     try:
-        train_results = load_result_file(train_path)
+        # TODO: should weight_scheme not in ['IPW',...]
+        use_e = config['weight_scheme'] != 'JW'
+        train_results = load_result_file(train_path,use_e)
     except:
-        'WARNING: Couldnt load result file. Skipping'
+        print('WARNING: Couldnt load result file. Skipping')
         return None
-
+    # print('TRAIN_RESULTS',type(train_results))
     # print (config['repetitions'])
     # print (config['repetitions'].shape)
     # print (config['experiments'].shape)
@@ -98,7 +106,7 @@ def load_results(output_dir, filters=None):
 
     # Multiple results
     files = ['%s/%s' % (output_dir, f) for f in os.listdir(output_dir)]
-    print(files)
+    # print(files)
     exp_dirs = [f for f in files if os.path.isdir(f)
                     if os.path.isfile('%s/result.npz' % f)]
 
