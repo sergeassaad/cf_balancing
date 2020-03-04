@@ -43,9 +43,18 @@ def evaluate(config_file, overwrite=False, filters=None):
 
     if not os.path.isdir(output_dir):
         raise Exception('Could not find output at path: %s' % output_dir)
-
-    data_train = cfg['datadir']+'/'+cfg['dataform']
-    data_test = cfg['datadir']+'/'+cfg['data_test']
+    # print(cfg['datadir'])
+    # print('HELLO',type(cfg['datadir'])==list)
+    if(type(cfg['datadir'])!=list):
+        data_train = cfg['datadir']+'/'+cfg['dataform']
+        data_test = cfg['datadir']+'/'+cfg['data_test']
+    else:
+        data_train = None
+        data_test = None
+    # TODO: here, datatest could be None because of no data, or because multiple datasets
+    # TODO: add flag to indicate whether multiple datasets
+    # TODO: this is ok for now since there is always a test set
+    
     binary = False
     if cfg['loss'] == 'log':
         binary = True
@@ -57,6 +66,7 @@ def evaluate(config_file, overwrite=False, filters=None):
                                 data_path_train=data_train,
                                 data_path_test=data_test,
                                 binary=binary, filters=filters)
+        
         # Save evaluation
         pickle.dump((eval_results, configs), open(eval_path, "wb"))
     else:

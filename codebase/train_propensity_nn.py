@@ -49,13 +49,13 @@ class Propensity_NN:
             self.e = tf.nn.sigmoid(self.t_preds)
 	    
 	    ####added block
-            T_float = tf.squeeze(tf.cast(self.T_ph, tf.float32), axis=1)
-            num_1 = tf.reduce_sum(T_float)
-            num_0 = tf.reduce_sum(1-T_float)
-            num_tot = num_1 + num_0
-	    p_1 = tf.cast(tf.squeeze(num_1/num_tot), tf.float32)
-	    p_0 = tf.cast(tf.squeeze(num_0/num_tot), tf.float32)
-            #self.e = (p_1*self.e)/(p_1*self.e + p_0*(1-self.e)) #corrected for prior probabilities
+            # T_float = tf.squeeze(tf.cast(self.T_ph, tf.float32), axis=1)
+            # num_1 = tf.reduce_sum(T_float)
+            # num_0 = tf.reduce_sum(1-T_float)
+            # num_tot = num_1 + num_0
+            # p_1 = tf.cast(tf.squeeze(num_1/num_tot), tf.float32)
+            # p_0 = tf.cast(tf.squeeze(num_0/num_tot), tf.float32)
+            # self.e = (p_1*self.e)/(p_1*self.e + p_0*(1-self.e)) #corrected for prior probabilities
 	    ####added block
 
             self.e = tf.stop_gradient(self.e)

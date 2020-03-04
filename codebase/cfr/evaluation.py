@@ -230,8 +230,17 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
         # for k,v in weight_schemes_.items():
         #     # print(k,v.shape)
         #TODO: here, print shape of weight_schemes, and make sure the multiply below works well
-       
     
+    #doubly robust ATE estimate
+    # if(e is not None):
+    #         pred_0 = (1-t)*yf_p + t*ycf_p
+    #         pred_1 = t*yf_p + (1-t)*ycf_p
+    
+    #         mu1_p_dr = np.mean(t*yf/e_-(t-e_)*pred_1/e_)
+    #         mu0_p_dr = np.mean((1-t)*yf/(1-e_)+(t-e_)*pred_0/(1-e_))
+            
+    #         ate_p_dr = mu1_p_dr - mu0_p_dr
+            
     eff = mu1-mu0
 
     rmse_fact = np.sqrt(np.mean(np.square(yf_p-yf)))
@@ -287,6 +296,7 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
             metrics[name] = m
         for name,m in weighted_PEHEs.items():
             metrics[name] = m
+        # metrics['bias_ate_dr'] = ate_p_dr-np.mean(eff)
     # print(metrics)
     # sys.exit()
     return metrics
@@ -379,13 +389,15 @@ def evaluate_result(result, p_alpha, data, validation=False,
 
     return eval_dict
 
-def evaluate(output_dir, data_path_train, data_path_test=None, binary=False, filters=None):
+def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False, filters=None):
 
     print '\nEvaluating experiment %s...' % output_dir
 
     # Load results for all configurations
     results = load_results(output_dir, filters)
-
+    # data_path_train = results['config']['datadir']+'/'+results['config']['dataform']
+    # data_path_test = results['config']['datadir']+'/'+results['config']['data_test']
+    # data_dir+'/'+cfg['dataform']
     if len(results) == 0:
         raise Exception('No finished results found.')
 
@@ -397,18 +409,19 @@ def evaluate(output_dir, data_path_train, data_path_test=None, binary=False, fil
     if Log.VERBOSE and multiple_exps:
         print 'Multiple data (experiments) detected'
 
-    # Load training data
-    if Log.VERBOSE:
-        print 'Loading TRAINING data %s...' % data_path_train
-    data_train = load_data(data_path_train)
+    # # Load training data
+    # if(data_path_train is not None)
+    #     if Log.VERBOSE:
+    #         print 'Loading TRAINING data %s...' % data_path_train
+    #     data_train = load_data(data_path_train)
 
-    # Load test data
-    if data_path_test is not None:
-        if Log.VERBOSE:
-            print 'Loading TEST data %s...' % data_path_test
-        data_test = load_data(data_path_test)
-    else:
-        data_test = None
+    # # Load test data
+    # if data_path_test is not None:
+    #     if Log.VERBOSE:
+    #         print 'Loading TEST data %s...' % data_path_test
+    #     data_test = load_data(data_path_test)
+    # else:
+    #     data_test = None
 
 
 
@@ -423,12 +436,25 @@ def evaluate(output_dir, data_path_train, data_path_test=None, binary=False, fil
             print 'Evaluating %d...' % (i+1)
 
         try:
+            # Load training data
+            data_path_train = result['config']['datadir']+'/'+result['config']['dataform']
+            if Log.VERBOSE:
+                print 'Loading TRAINING data %s...' % data_path_train
+            data_train = load_data(data_path_train)
+
+            # Load test data
+            data_path_test = result['config']['datadir']+'/'+result['config']['data_test']
+            if Log.VERBOSE:
+                print 'Loading TEST data %s...' % data_path_test
+            data_test = load_data(data_path_test)
+
+
             eval_train = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
                 validation=False, multiple_exps=multiple_exps, binary=binary)
 
             eval_valid = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
                 validation=True, multiple_exps=multiple_exps, binary=binary)
-
+            
             if data_test is not None:
                 eval_test = evaluate_result(result['test'], result['config']['p_alpha'], data_test,
                     validation=False, multiple_exps=multiple_exps, binary=binary)

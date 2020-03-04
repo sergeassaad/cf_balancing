@@ -19,7 +19,7 @@ CONFIG_CRITERION_CONT = 'pehe_nn'
 CORR_CRITERION_CONT = 'pehe'
 CORR_CHOICE_SET_CONT = 'test'
 # PARETO_SELECTION = True
-PARETO_SELECTION = True
+PARETO_SELECTION = False
 
 EARLY_STOP_SET_BIN = 'valid'
 EARLY_STOP_CRITERION_BIN = 'policy_risk'
@@ -112,7 +112,7 @@ def table_str_bin(result_set, row_labels, labels_long=None, binary=False):
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
         else:
             cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn',\
-                'bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW','pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW']
+                'bias_ate_dr','bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW','pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW']
     else:
         if binary:
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
@@ -272,13 +272,13 @@ def plot_option_correlation(output_dir, diff_opts, results, configs,
 
 def plot_evaluation_cont(results, configs, output_dir, data_train_path, data_test_path, filters=None):
 
-    data_train = load_data(data_train_path)
-    data_test = load_data(data_test_path)
+    # data_train = load_data(data_train_path)
+    # data_test = load_data(data_test_path)
 
-    propensity = {}
-    propensity['train'] = np.mean(data_train['t'])
-    propensity['valid'] = np.mean(data_train['t'])
-    propensity['test'] = np.mean(data_test['t'])
+    # propensity = {}
+    # propensity['train'] = np.mean(data_train['t'])
+    # propensity['valid'] = np.mean(data_train['t'])
+    # propensity['test'] = np.mean(data_test['t'])
 
     ''' Select by filter '''
     filter_str = ''
