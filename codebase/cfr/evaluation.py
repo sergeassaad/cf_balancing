@@ -389,7 +389,7 @@ def evaluate_result(result, p_alpha, data, validation=False,
 
     return eval_dict
 
-def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False, filters=None):
+def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False, filters=None,multiple_datasets=False):
 
     print '\nEvaluating experiment %s...' % output_dir
 
@@ -409,19 +409,19 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
     if Log.VERBOSE and multiple_exps:
         print 'Multiple data (experiments) detected'
 
-    # # Load training data
-    # if(data_path_train is not None)
-    #     if Log.VERBOSE:
-    #         print 'Loading TRAINING data %s...' % data_path_train
-    #     data_train = load_data(data_path_train)
+    # Load training data
+    if(not multiple_datasets):
+        if Log.VERBOSE:
+            print 'Loading TRAINING data %s...' % data_path_train
+        data_train = load_data(data_path_train)
 
-    # # Load test data
-    # if data_path_test is not None:
-    #     if Log.VERBOSE:
-    #         print 'Loading TEST data %s...' % data_path_test
-    #     data_test = load_data(data_path_test)
-    # else:
-    #     data_test = None
+    # Load test data
+    if data_path_test is not None and not multiple_datasets:
+        if Log.VERBOSE:
+            print 'Loading TEST data %s...' % data_path_test
+        data_test = load_data(data_path_test)
+    else:
+        data_test = None
 
 
 
@@ -437,16 +437,17 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
 
         try:
             # Load training data
-            data_path_train = result['config']['datadir']+'/'+result['config']['dataform']
-            if Log.VERBOSE:
-                print 'Loading TRAINING data %s...' % data_path_train
-            data_train = load_data(data_path_train)
+            if(multiple_datasets):
+                data_path_train = result['config']['datadir']+'/'+result['config']['dataform']
+                if Log.VERBOSE:
+                    print 'Loading TRAINING data %s...' % data_path_train
+                data_train = load_data(data_path_train)
 
             # Load test data
-            data_path_test = result['config']['datadir']+'/'+result['config']['data_test']
-            if Log.VERBOSE:
-                print 'Loading TEST data %s...' % data_path_test
-            data_test = load_data(data_path_test)
+                data_path_test = result['config']['datadir']+'/'+result['config']['data_test']
+                    if Log.VERBOSE:
+                        print 'Loading TEST data %s...' % data_path_test
+                    data_test = load_data(data_path_test)
 
 
             eval_train = evaluate_result(result['train'], result['config']['p_alpha'], data_train,

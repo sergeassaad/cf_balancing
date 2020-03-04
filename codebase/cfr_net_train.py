@@ -92,14 +92,9 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
     n_train = len(I_train)
     n_treated = int(np.sum(D['t'][I_train,:]))
     n_control = n_train-n_treated
-    # print('HELLO_A',len(I_train))
-    # print(np.squeeze(D['t'][I_train]).shape)
     I_train_np = np.array(I_train)
     I_treated = I_train_np[np.squeeze(D['t'][I_train])==1]
     I_control = I_train_np[np.squeeze(D['t'][I_train])==0]
-    # print(I_treated)
-    # print(I_control)
-    # print("HELLO_B",n_treated,n_control,n_train)
     ''' Compute treatment probability'''
     p_treated = np.mean(D['t'][I_train,:])
 
@@ -186,8 +181,6 @@ def train(CFR, sess, train_step, disc_step, D, I_valid, D_test, logfile, i_exp, 
                 x_batch = np.concatenate([x_batch_treated,x_batch_control],axis=0)
                 t_batch = np.concatenate([t_batch_treated,t_batch_control])
                 y_batch = np.concatenate([y_batch_treated,y_batch_control])
-                # print("HELLO_C",x_batch_treated.shape,x_batch_control.shape,FLAGS.batch_size)
-                # sys.exit()
             else:
                 I = random.sample(range(0, n_train), FLAGS.batch_size)
                 x_batch = D['x'][I_train,:][I,:]

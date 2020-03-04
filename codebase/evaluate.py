@@ -45,7 +45,9 @@ def evaluate(config_file, overwrite=False, filters=None):
         raise Exception('Could not find output at path: %s' % output_dir)
     # print(cfg['datadir'])
     # print('HELLO',type(cfg['datadir'])==list)
-    if(type(cfg['datadir'])!=list):
+    multiple_datasets = type(cfg['datadir'])==list
+    
+    if(not multiple_datasets):
         data_train = cfg['datadir']+'/'+cfg['dataform']
         data_test = cfg['datadir']+'/'+cfg['data_test']
     else:
@@ -65,7 +67,7 @@ def evaluate(config_file, overwrite=False, filters=None):
         eval_results, configs = evaluation.evaluate(output_dir,
                                 data_path_train=data_train,
                                 data_path_test=data_test,
-                                binary=binary, filters=filters)
+                                binary=binary, filters=filters,multiple_datasets=multiple_datasets)
         
         # Save evaluation
         pickle.dump((eval_results, configs), open(eval_path, "wb"))
