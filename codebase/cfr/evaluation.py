@@ -190,8 +190,11 @@ def evaluate_bin_att(predictions, data, i_exp, I_subset=None,
 
 def weight_schemes(e):
     # TODO: change trunc_alpha to depend on flag
-    trunc_alpha = 0.1
-    return {'IPW':np.ones(e.shape),'OW':e*(1-e),'TIPW':np.logical_and(trunc_alpha<e,e<1.0-trunc_alpha).astype(float),'MW':np.minimum(e,1-e)}
+    if(e is not None):
+        trunc_alpha = 0.1
+        return {'IPW':np.ones(e.shape),'OW':e*(1-e),'TIPW':np.logical_and(trunc_alpha<e,e<1.0-trunc_alpha).astype(float),'MW':np.minimum(e,1-e)}
+    else:
+        return {'IPW':None,'OW':None,'TIPW':None,'MW':None}
 
 def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     compute_policy_curve=False, e=None, nn_t=None, nn_c=None):
@@ -207,7 +210,8 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     ycf_p = predictions[:,1]
     if(e is not None):
         e_ = e[i_exp]
-    
+
+        
     if not I_subset is None:
         #TODO: subset e here
         
@@ -221,12 +225,12 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
         mu1 = mu1[I_subset]
         if(e is not None):
             e_ = e_[I_subset]
-
-    # TODO: finally, with e here, compute all flavors of ATE and PEHE with different f(x) values
+            
+    
     if(e is not None):
-        # print('Hello!')
-        # print(e.shape)
         weight_schemes_ = weight_schemes(e_)
+    else:
+        weight_schemes_ = weight_schemes(None)
         # for k,v in weight_schemes_.items():
         #     # print(k,v.shape)
         #TODO: here, print shape of weight_schemes, and make sure the multiply below works well
@@ -254,17 +258,21 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     rmse_ite = np.sqrt(np.mean(np.square(ite_pred-eff)))
 
     # TODO: here, weight eff_pred by different weight schemes
-    if(e is not None):
-        weighted_ATEs = {}
-        bias_weighted_ATEs = {}
-        weighted_PEHEs = {}
-        for name,w in weight_schemes_.items():
+    weighted_ATEs = {}
+    bias_weighted_ATEs = {}
+    weighted_PEHEs = {}
+    for name,w in weight_schemes_.items():
+        if(w is not None):
+            # print(w.shape,eff_pred.shape)
             weighted_ate_pred = np.sum(w*eff_pred)/np.sum(w)
             weighted_ate = np.sum(w*eff)/np.sum(w)
-            
             weighted_ATEs['ate_pred_'+name] = weighted_ate_pred
             bias_weighted_ATEs['bias_ate_'+name] = weighted_ate_pred - weighted_ate
             weighted_PEHEs['pehe_'+name] = np.sqrt(np.sum(w*np.square(eff_pred-eff))/np.sum(w))
+        else:
+            weighted_ATEs['ate_pred_'+name] = np.nan
+            bias_weighted_ATEs['bias_ate_'+name] = np.nan
+            weighted_PEHEs['pehe_'+name] = np.nan
     # print('true ATE',np.mean(eff))
     # sys.exit()
     ate_pred = np.mean(eff_pred)
@@ -289,13 +297,12 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
             'pehe': pehe, 'rmse_ite': rmse_ite, 'pehe_nn': pehe_appr}
     #'policy_value': policy_value, 'policy_curve': policy_curve}
     
-    if(e is not None):
-        for name,m in weighted_ATEs.items():
-            metrics[name] = m
-        for name,m in bias_weighted_ATEs.items():
-            metrics[name] = m
-        for name,m in weighted_PEHEs.items():
-            metrics[name] = m
+    for name,m in weighted_ATEs.items():
+        metrics[name] = m
+    for name,m in bias_weighted_ATEs.items():
+        metrics[name] = m
+    for name,m in weighted_PEHEs.items():
+        metrics[name] = m
         # metrics['bias_ate_dr'] = ate_p_dr-np.mean(eff)
     # print(metrics)
     # sys.exit()
@@ -310,7 +317,7 @@ def evaluate_result(result, p_alpha, data, validation=False,
     # print('e' in result)
     if('e' in result):
         e =  result['e']
-
+    
     if validation:
         I_valid = result['val']
 
@@ -476,6 +483,7 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
     # Reformat into dict
     eval_dict = {'train': {}, 'test': {}, 'valid': {}}
     keys = eval_results[0]['train'].keys()
+    print(keys)
     
     # print ('***********************************')
     # print (len(eval_results))
