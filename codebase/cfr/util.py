@@ -80,7 +80,7 @@ def load_sparse(fname):
 
 def safe_sqrt(x, lbound=SQRT_CONST):
     ''' Numerically safe version of TensorFlow sqrt '''
-    return tf.sqrt(tf.clip_by_value(x, lbound, np.inf))
+    return tf.sqrt(tf.clip_by_value(x, lbound, 1e7)) #tf.sqrt(tf.clip_by_value(x, lbound, np.inf))
 
 def lindisc(X,p,t,weights=None):
     ''' Linear MMD '''	
@@ -252,7 +252,7 @@ def wasserstein(X,t,p,lam=10,weights=None,its=10,sq=False,backpropT=False):
     Mlam = eff_lam*Mt
     K = tf.exp(-Mlam) + 1e-6 # added constant to avoid nan
     U = K*Mt
-    ainvK = K/a
+    ainvK = K/(a + tf.constant(1e-7))
 
     u = a
     for i in range(0,its):
