@@ -91,6 +91,19 @@ def pdist2(X,Y):
 
     return np.sqrt(D + 1e-8)
 
+def pdist2_mahalanobis(X,Y,cov):
+    icov = np.linalg.inv(cov)
+    
+    num_x = X.shape[0]
+    num_y = Y.shape[0]
+    C = -2*X.dot(icov).dot(Y.T)
+    nx = np.diag(X.dot(icov),X.T)
+    ny = np.diag(Y.dot(icov),Y.T)
+    nx_repeat = np.tile(nx,(1,num_y))
+    ny_repeat = np.tile(ny,(1,num_x))
+    D =  nx_repeat.T + ny_repeat + C
+    return np.sqrt(D + 1e-8)
+
 def cf_nn(x, t):
     It = np.array(np.where(t==1))[0,:]
     Ic = np.array(np.where(t==0))[0,:]
@@ -105,7 +118,20 @@ def cf_nn(x, t):
 
     return nn_t, nn_c
 
-def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
+def cf_nn_mahalanobis(x, t):
+    It = np.array(np.where(t==1))[0,:]
+    Ic = np.array(np.where(t==0))[0,:]
+
+    x_c = x[Ic,:]
+    x_t = x[It,:]
+    cov = np.cov(x)
+    D = pdist2_mahalanobis(x_c, x_t,cov)
+    nn_t = Ic[np.argmin(D,0)]
+    nn_c = It[np.argmin(D,1)]
+
+    return nn_t, nn_c
+
+def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None,f=None):
     if nn_t is None or nn_c is None:
         nn_t, nn_c = cf_nn(x,t)
 
@@ -126,7 +152,10 @@ def pehe_nn(yf_p, ycf_p, y, x, t, nn_t=None, nn_c=None):
     eff_pred = np.concatenate([eff_pred_t, eff_pred_c]) #np.vstack((eff_pred_t, eff_pred_c))
     eff_nn = np.concatenate([eff_nn_t, eff_nn_c]) #np.vstack((eff_nn_t, eff_nn_c))
 
-    pehe_nn = np.sqrt(np.mean(np.square(eff_pred - eff_nn)))
+    if(f is None):
+        pehe_nn = np.sqrt(np.mean(np.square(eff_pred - eff_nn)))
+    else:
+        pehe_nn = np.sqrt(f*(np.square(eff_pred - eff_nn))/np.sum(f))
 
     return pehe_nn
 
@@ -197,9 +226,9 @@ def weight_schemes(e):
         return {'IPW':None,'OW':None,'TIPW':None,'MW':None}
 
 def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
-    compute_policy_curve=False, e=None, nn_t=None, nn_c=None):
+    compute_policy_curve=False, e=None, nn_t=None, nn_c=None,b1=None,b0=None):
     # TODO: take e as an input, index by i_exp
-    
+    is_train = b1 is None
     x = data['x'][:,:,i_exp]
     t = data['t'][:,i_exp]
     yf = data['yf'][:,i_exp]
@@ -229,24 +258,13 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     
     if(e is not None):
         weight_schemes_ = weight_schemes(e_)
+        
     else:
         weight_schemes_ = weight_schemes(None)
-        # for k,v in weight_schemes_.items():
-        #     # print(k,v.shape)
-        #TODO: here, print shape of weight_schemes, and make sure the multiply below works well
-    
-    #doubly robust ATE estimate
-    # if(e is not None):
-    #         pred_0 = (1-t)*yf_p + t*ycf_p
-    #         pred_1 = t*yf_p + (1-t)*ycf_p
-    
-    #         mu1_p_dr = np.mean(t*yf/e_-(t-e_)*pred_1/e_)
-    #         mu0_p_dr = np.mean((1-t)*yf/(1-e_)+(t-e_)*pred_0/(1-e_))
-            
-    #         ate_p_dr = mu1_p_dr - mu0_p_dr
             
     eff = mu1-mu0
-
+    pred_0 = (1-t)*yf_p + t*ycf_p
+    pred_1 = t*yf_p + (1-t)*ycf_p
     rmse_fact = np.sqrt(np.mean(np.square(yf_p-yf)))
     rmse_cfact = np.sqrt(np.mean(np.square(ycf_p-ycf)))
 
@@ -257,24 +275,45 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     ite_pred[t>0] = -ite_pred[t>0]
     rmse_ite = np.sqrt(np.mean(np.square(ite_pred-eff)))
 
-    # TODO: here, weight eff_pred by different weight schemes
     weighted_ATEs = {}
     bias_weighted_ATEs = {}
     weighted_PEHEs = {}
-    for name,w in weight_schemes_.items():
-        if(w is not None):
-            # print(w.shape,eff_pred.shape)
-            weighted_ate_pred = np.sum(w*eff_pred)/np.sum(w)
-            weighted_ate = np.sum(w*eff)/np.sum(w)
+    
+    if(is_train):
+        b1 = {}
+        b0 = {}
+        for name,f in weight_schemes_.items():
+            if(e is not None):
+                w = f/(t*e_+(1-t)*(1-e_))
+                b1[name] = np.sum(w*t*(pred_1-yf))/np.sum(w*t)
+                b0[name] = np.sum(w*(1-t)*(pred_0-yf))/np.sum(w*(1-t))
+            else:
+                b1[name] = np.nan
+                b0[name] = np.nan
+    
+    
+    weighted_ATE_DR = {}
+    bias_weighted_ATE_DR = {}
+    pehe_appr_weighted = {}
+    for name,f in weight_schemes_.items():
+        if(e is not None):
+            w = f/(t*e_+(1-t)*(1-e_))
+            weighted_ate_pred = np.sum(f*eff_pred)/np.sum(f)
+            weighted_ate = np.sum(f*eff)/np.sum(f)
             weighted_ATEs['ate_pred_'+name] = weighted_ate_pred
             bias_weighted_ATEs['bias_ate_'+name] = weighted_ate_pred - weighted_ate
-            weighted_PEHEs['pehe_'+name] = np.sqrt(np.sum(w*np.square(eff_pred-eff))/np.sum(w))
+            weighted_PEHEs['pehe_'+name] = np.sqrt(np.sum(f*np.square(eff_pred-eff))/np.sum(f))
+            weighted_ATE_DR['ate_pred_DR_'+name] = weighted_ate_pred -b1[name] + b0[name]
+            bias_weighted_ATE_DR['bias_ate_DR_'+name] = weighted_ATE_DR['ate_pred_DR_'+name] - weighted_ate
+            pehe_appr_weighted['pehe_nn_'+name] = pehe_nn(yf_p, ycf_p, yf, x, t, nn_t, nn_c,f)
         else:
+            print('E IS NONE')
             weighted_ATEs['ate_pred_'+name] = np.nan
             bias_weighted_ATEs['bias_ate_'+name] = np.nan
             weighted_PEHEs['pehe_'+name] = np.nan
-    # print('true ATE',np.mean(eff))
-    # sys.exit()
+            weighted_ATE_DR['ate_pred_DR_'+name] = np.nan
+            bias_weighted_ATE_DR['bias_ate_DR_'+name] = np.nan
+
     ate_pred = np.mean(eff_pred)
     bias_ate = ate_pred-np.mean(eff)
 
@@ -287,7 +326,7 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
     pehe = np.sqrt(np.mean(np.square(eff_pred-eff)))
 
     pehe_appr = pehe_nn(yf_p, ycf_p, yf, x, t, nn_t, nn_c)
-
+    
     # @TODO: Not clear what this is for continuous data
     #policy_value, policy_curve = policy_val(t, yf, eff_pred, compute_policy_curve)
     metrics = {'ate_pred': ate_pred, 'att_pred': att_pred,
@@ -297,21 +336,19 @@ def evaluate_cont_ate(predictions, data, i_exp, I_subset=None,
             'pehe': pehe, 'rmse_ite': rmse_ite, 'pehe_nn': pehe_appr}
     #'policy_value': policy_value, 'policy_curve': policy_curve}
     
-    for name,m in weighted_ATEs.items():
-        metrics[name] = m
-    for name,m in bias_weighted_ATEs.items():
-        metrics[name] = m
-    for name,m in weighted_PEHEs.items():
-        metrics[name] = m
-        # metrics['bias_ate_dr'] = ate_p_dr-np.mean(eff)
-    # print(metrics)
-    # sys.exit()
-    return metrics
+    for d in [weighted_ATEs,bias_weighted_ATEs,weighted_PEHEs,weighted_ATE_DR,bias_weighted_ATE_DR,pehe_appr_weighted]:
+        for name,m in d.items():
+            metrics[name] = m
+    return metrics,b1,b0
             
 
 def evaluate_result(result, p_alpha, data, validation=False,
-        multiple_exps=False, binary=False):
+        multiple_exps=False, binary=False,b1_results=None,b0_results=None):
+    # input 'train','val','test'
+    # output computed biases b1 and b0 on training set.
 
+    is_train = b1_results is None
+        
     predictions = result['pred']
     e = None
     # print('e' in result)
@@ -327,9 +364,15 @@ def evaluate_result(result, p_alpha, data, validation=False,
     compute_policy_curve = True
 
     eval_results = []
+    if(is_train):
+        b1_results = []
+        b0_results = []
     #Loop over output_times
     for i_out in range(n_outputs):
         eval_results_out = []
+        if(is_train):
+            b1_results_out = []
+            b0_results_out = []
 
         if not multiple_exps and not validation:
             nn_t, nn_c = cf_nn(data['x'][:,:,0], data['t'][:,0])
@@ -359,12 +402,21 @@ def evaluate_result(result, p_alpha, data, validation=False,
                 eval_result = evaluate_bin_att(predictions[:,:,i_rep,i_out],
                     data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c)
             else:
-                # TODO: pass e into eval_cont_ate here
-                eval_result = evaluate_cont_ate(predictions[:,:,i_rep,i_out],
-                    data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c)
-
+                if(is_train):
+                    eval_result,b1,b0 = evaluate_cont_ate(predictions[:,:,i_rep,i_out],
+                        data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c)
+                    b1_results_out.append(b1)
+                    b0_results_out.append(b0)
+                else:
+                    b1 = b1_results[i_out][i_exp]
+                    b0 = b0_results[i_out][i_exp]
+                    eval_result,_,_ = evaluate_cont_ate(predictions[:,:,i_rep,i_out],
+                        data, i_exp, I_valid_rep, compute_policy_curve, e, nn_t=nn_t, nn_c=nn_c,b1=b1,b0=b0)
+            
             eval_results_out.append(eval_result)
-
+        if(is_train):
+            b1_results.append(b1_results_out)
+            b0_results.append(b0_results_out)
         eval_results.append(eval_results_out)
 
     # Reformat into dict
@@ -397,7 +449,7 @@ def evaluate_result(result, p_alpha, data, validation=False,
 	eval_dict['reg_loss'] = reg_loss
 	eval_dict['imb_loss'] = imb_loss
 
-    return eval_dict
+    return eval_dict,b1_results,b0_results
 
 def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False, filters=None,multiple_datasets=False):
 
@@ -405,9 +457,7 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
 
     # Load results for all configurations
     results = load_results(output_dir, filters)
-    # data_path_train = results['config']['datadir']+'/'+results['config']['dataform']
-    # data_path_test = results['config']['datadir']+'/'+results['config']['data_test']
-    # data_dir+'/'+cfg['dataform']
+    
     if len(results) == 0:
         raise Exception('No finished results found.')
 
@@ -460,15 +510,17 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
                 data_test = load_data(data_path_test)
 
 
-            eval_train = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
+            eval_train,b1_results,b0_results = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
                 validation=False, multiple_exps=multiple_exps, binary=binary)
 
-            eval_valid = evaluate_result(result['train'], result['config']['p_alpha'], data_train,
-                validation=True, multiple_exps=multiple_exps, binary=binary)
+            eval_valid,_,_= evaluate_result(result['train'], result['config']['p_alpha'], data_train,
+                validation=True, multiple_exps=multiple_exps, binary=binary,b1_results=b1_results,b0_results=b0_results)
             
             if data_test is not None:
-                eval_test = evaluate_result(result['test'], result['config']['p_alpha'], data_test,
-                    validation=False, multiple_exps=multiple_exps, binary=binary)
+                print('TEST EVAL')
+                print('TEST HAS e: ','e' in result['test'])
+                eval_test,_,_ = evaluate_result(result['test'], result['config']['p_alpha'], data_test,
+                    validation=False, multiple_exps=multiple_exps, binary=binary,b1_results=b1_results,b0_results=b0_results)
             else:
                 eval_test = None
 
@@ -485,28 +537,18 @@ def evaluate(output_dir, data_path_train=None, data_path_test=None, binary=False
     keys = eval_results[0]['train'].keys()
     print(keys)
     
-    # print ('***********************************')
-    # print (len(eval_results))
-    # print (len(eval_results))
-
-    # for k in keys:
-    #     for i in range(len(eval_results)):
-    #         print (k)
-    #         # print (i, eval_results[i]['train'][k])
-    #         # print (i, eval_results[i]['train'][k].shape)
-    #         # print (configs_out[i])
-    #         print ('*************')
-
-    for k in keys:
-        # print (k)
+    lenkeys = len(keys)
+    for i,k in enumerate(keys):
+        print('COMPLETION:',i,'/',lenkeys)
+        print (k)
         v = np.array([eval_results[i]['train'][k] for i in range(len(eval_results))])
         eval_dict['train'][k] = v
-
+        print('TRAIN DONE')
         v = np.array([eval_results[i]['valid'][k] for i in range(len(eval_results))])
         eval_dict['valid'][k] = v
-
+        print('VAL DONE')
         if eval_test is not None and k in eval_results[0]['test']:
             v = np.array([eval_results[i]['test'][k] for i in range(len(eval_results))])
             eval_dict['test'][k] = v
-
+            print('TEST DONE')
     return eval_dict, configs_out

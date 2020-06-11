@@ -43,8 +43,6 @@ def evaluate(config_file, overwrite=False, filters=None):
 
     if not os.path.isdir(output_dir):
         raise Exception('Could not find output at path: %s' % output_dir)
-    # print(cfg['datadir'])
-    # print('HELLO',type(cfg['datadir'])==list)
     multiple_datasets = type(cfg['datadir'])==list
     
     if(not multiple_datasets):
@@ -53,9 +51,6 @@ def evaluate(config_file, overwrite=False, filters=None):
     else:
         data_train = None
         data_test = None
-    # TODO: here, datatest could be None because of no data, or because multiple datasets
-    # TODO: add flag to indicate whether multiple datasets
-    # TODO: this is ok for now since there is always a test set
     
     binary = False
     if cfg['loss'] == 'log':
@@ -70,6 +65,7 @@ def evaluate(config_file, overwrite=False, filters=None):
                                 binary=binary, filters=filters,multiple_datasets=multiple_datasets)
         
         # Save evaluation
+        print('SAVING in evaluation.npz file')
         pickle.dump((eval_results, configs), open(eval_path, "wb"))
     else:
         if Log.VERBOSE:
@@ -78,8 +74,7 @@ def evaluate(config_file, overwrite=False, filters=None):
         eval_results, configs = pickle.load(open(eval_path, "rb"))
 
     # Sort by alpha
-    #eval_results, configs = sort_by_config(eval_results, configs, 'p_alpha')
-
+    #eval_results, configs = sort_by_config(eval_results, configs, 'p_alpha')x
     # Print evaluation results
     if binary:
         plot_evaluation_bin(eval_results, configs, output_dir, data_train, data_test, filters)

@@ -29,8 +29,6 @@ def log(logfile,str):
 
 def save_config(fname):
     """ Save configuration """
-    # flagdict =  FLAGS.__dict__['__flags']
-    # flagdict = tf.flags.FLAGS.__flags
     flagdict = tf.app.flags.FLAGS.flag_values_dict()
     s = '\n'.join(['%s: %s' % (k,str(flagdict[k])) for k in sorted(flagdict.keys())])
     f = open(fname,'w')
@@ -191,6 +189,26 @@ def pdist2sq(X,Y):
 def pdist2(X,Y):
     """ Returns the tensorflow pairwise distance matrix """
     return safe_sqrt(pdist2sq(X,Y))
+def pdist2_mahalanobis(X,Y):
+    return safe_sqrt(pdist2sq_mahalanobis(X,Y))
+def pdist2sq_mahalanobis(X,Y,cov):
+    icov = tf.linalg.inv(cov)
+    num_x = tf.shape(X)[0]
+    num_y = tf.shape(Y)[0]
+    C = -2*tf.matmul(tf.matmul(X,icov),tf.transpose(Y))
+    nx = tf.diag(tf.matmul(tf.matmul(X,icov),tf.transpose(X)))
+    ny = tf.diag(tf.matmul(tf.matmul(Y,icov),tf.transpose(Y)))
+    nx_repeat = tf.tile(nx,tf.constant([1,num_y],tf.int32))
+    ny_repeat = tf.tile(ny,tf.constant([1,num_x],tf.int32))
+    D =  tf.transpose(nx_repeat) + ny_repeat + C
+    return D
+
+def tf_cov(x):
+    mean_x = tf.reduce_mean(x, axis=0, keep_dims=True)
+    mx = tf.matmul(tf.transpose(mean_x), mean_x)
+    vx = tf.matmul(tf.transpose(x), x)/tf.cast(tf.shape(x)[0], tf.float32)
+    cov_xx = vx - mx
+    return cov_xx
 
 def pop_dist(X,t):
     it = tf.where(t>0)[:,0]
@@ -310,52 +328,3 @@ def lrelu(x, leak=0.2, name="lrelu"):
 
 def nan_to_zero(tensor):
     return tf.where(tf.is_nan(tensor), tf.zeros_like(tensor), tensor)
-
-##################################################
-# Helpers for Pareto smoothing
-
-def Pareto_parameters(X):
-    # Method from Zhang and Stephens to find Generalized Pareto parameters
-    # Note: Assumes X is already sorted
-    def lik(b):
-        k = -tf.reduce_mean(tf.math.log(1-b*X+SMALL))
-        return tf.math.log(b/(k+SMALL)+SMALL)+k-1
-
-    n = tf.shape(X)[0]
-    n_float = tf.cast(n,tf.float32)
-    m_float = 20 + tf.math.floor(tf.math.sqrt(n_float))
-    m = tf.cast(m_float,tf.int32)
-    quartile = tf.cast(tf.math.floor(n_float/4.0 + 0.5),tf.int32)
-    X_quartile = X[quartile]
-    denom = tf.cast(tf.range(1,m+1),tf.float32)-0.5
-    theta = 1/X[n-1] + (1-tf.math.sqrt(m_float/denom))/(3*X_quartile+SMALL)
-    l = n_float*tf.map_fn(lik,theta)
-    w = tf.nn.softmax(tf.gather(l,tf.range(m)))
-    theta_new = tf.reduce_sum(theta*w)
-    k_new = -tf.reduce_mean(tf.math.log(1-theta_new*X+SMALL))
-    sigma_new = k_new/theta_new
-    return sigma_new,k_new
-
-def inverse_generalized_pareto(percentiles,sigma,k):
-    # inverse cdf for Generalized Pareto distribution
-    return sigma/k*(1-(1-percentiles)**k)
-
-def Pareto_Smoothing(IPW):
-    # Method from "Pareto Smoothed Importance Sampling" by Vehtari et al.
-    n = tf.shape(IPW)[0]
-    n_float = tf.cast(n,tf.float32)
-    M_float = tf.math.minimum(tf.math.floor(n_float/5.0),tf.math.floor(3*tf.math.sqrt(n_float)))
-    M = tf.cast(M_float,tf.int32)
-    order = tf.argsort(IPW)
-    # print("IPW shape:",IPW.get_shape())
-    IPW_sorted = tf.gather(IPW,order)
-    mu = IPW_sorted[n-M-1]
-    head = tf.gather(IPW_sorted,tf.range(n-M))
-    tail = tf.gather(IPW_sorted,tf.range(n-M,n))
-    sigma,k = Pareto_parameters(tail-mu)
-    percentiles = (tf.cast(tf.range(1,M+1),tf.float32)-0.5)/M_float
-    smoothed_tail = mu + inverse_generalized_pareto(percentiles,sigma,k)
-    # print(head.get_shape(),smoothed_tail.get_shape())
-    sorted_smoothed_IPW = tf.concat([head,smoothed_tail],axis=0)
-    smoothed_IPW = tf.scatter_nd(tf.expand_dims(order,axis=1),sorted_smoothed_IPW,shape = [n])
-    return smoothed_IPW,k

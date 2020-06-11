@@ -1,0 +1,8 @@
+[1] "Method:  no_weight"
+[1] "Using reps:  TRUE"
+[1] "Normalized:  unnormalized"
+[1] "sqrt(e_PEHE):  3.5176  +-  0.5668"
+[1] "e_ATE:  0.4672  +-  0.0608"
+[1] "TAU_CI:  0.5461  +-  0.0179"
+[1] "sqrt(e_PEHE.g):  3.5200  +-  0.5673"
+[1] "e_ATE.g:  0.4687  +-  0.0611"

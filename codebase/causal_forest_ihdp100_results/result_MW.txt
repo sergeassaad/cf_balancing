@@ -1,0 +1,8 @@
+[1] "Method:  MW"
+[1] "Using reps:  TRUE"
+[1] "Normalized:  unnormalized"
+[1] "sqrt(e_PEHE):  1.5056  +-  0.2985"
+[1] "e_ATE:  0.2018  +-  0.0274"
+[1] "TAU_CI:  0.7836  +-  0.0108"
+[1] "sqrt(e_PEHE.g):  1.5319  +-  0.3161"
+[1] "e_ATE.g:  0.2142  +-  0.0305"

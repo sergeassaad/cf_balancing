@@ -15,11 +15,8 @@ EARLY_STOP_SET_CONT = 'valid'
 EARLY_STOP_CRITERION_CONT = 'objective'
 CONFIG_CHOICE_SET_CONT = 'valid'
 CONFIG_CRITERION_CONT = 'pehe_nn'
-# CONFIG_CRITERION_CONT = 'objective'
 CORR_CRITERION_CONT = 'pehe'
 CORR_CHOICE_SET_CONT = 'test'
-# PARETO_SELECTION = True
-PARETO_SELECTION = False
 
 EARLY_STOP_SET_BIN = 'valid'
 EARLY_STOP_CRITERION_BIN = 'policy_risk'
@@ -29,43 +26,6 @@ CORR_CRITERION_BIN = 'policy_risk'
 CORR_CHOICE_SET_BIN = 'test'
 
 CURVE_TOP_K = 7
-
-def fast_nondom_sorting(obj_vals, criterion_vals):
-    subs_list = []
-    dom_count_list = []
-    for i in range(len(criterion_vals)):
-	subs = []
-	dom_count = 0
-	for j in range(len(criterion_vals)):
-	    if all(np.less_equal([obj_vals[0][i], obj_vals[1][i]], [obj_vals[0][j], obj_vals[1][j]])) and any(np.less([obj_vals[0][i], obj_vals[1][i]], [obj_vals[0][j], obj_vals[1][j]])): #i dominates j
-		subs.append(j)
-	    elif all(np.less_equal([obj_vals[0][j], obj_vals[1][j]], [obj_vals[0][i], obj_vals[1][i]])) and any(np.less([obj_vals[0][j], obj_vals[1][j]], [obj_vals[0][i], obj_vals[1][i]])): #j dominates i
-		dom_count += 1
-	subs_list.append(subs)
-	dom_count_list.append(dom_count)
-
-    sort_key = []
-    ranks = -np.ones((1, len(criterion_vals)))[0]
-    curr_rank = 1
-    ranks[np.where(np.array(dom_count_list)==0)] = curr_rank
-    curr_front = [idx for idx in range(len(ranks)) if ranks[idx]==curr_rank] #np.argwhere(ranks==curr_rank)
-    sort_key_temp = np.array(curr_front)[np.argsort(np.array(criterion_vals)[np.where(ranks==curr_rank)])]
-    sort_key += list(sort_key_temp)
-    while curr_front:
-	next_front = []
-	for p in curr_front:
-	    for q in subs_list[p]:
-		dom_count_list[q] -= 1
-		if (dom_count_list[q]==0):
-		    ranks[q] = curr_rank + 1
-		    next_front.append(q)
-	curr_rank += 1
-	curr_front = next_front
-	if curr_front:
-	    sort_key_temp = np.array(curr_front)[np.argsort(np.array(criterion_vals)[np.where(ranks==curr_rank)])] #check entire syntax
-	    sort_key += list(sort_key_temp)
-
-    return sort_key
 
 def fix_log_axes(x):
     ax = plt.axes()
@@ -107,12 +67,21 @@ def cap(s):
 def table_str_bin(result_set, row_labels, labels_long=None, binary=False):
     # TODO: here, if e, then add columns for bias_ATE_weighted
     # TODO: add weighted ATT for binary case
+    # print(result_set[0])
     if('ate_pred_IPW' in result_set[0]):
         if binary:
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
         else:
+            # cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn','pehe_nn_maha',\
+            #     'bias_ate_dr','bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW',\
+            #         'pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW',\
+            #             'bias_ate_DR_IPW','bias_ate_DR_TIPW','bias_ate_DR_MW','bias_ate_DR_OW',\
+            #                 'pehe_nn_IPW','pehe_nn_TIPW','pehe_nn_MW','pehe_nn_OW']
             cols = ['pehe', 'bias_ate', 'rmse_fact', 'rmse_ite', 'objective', 'pehe_nn',\
-                'bias_ate_dr','bias_ate_IPW','bias_ate_TIPW','bias_ate_MW','bias_ate_OW','pehe_IPW','pehe_TIPW','pehe_MW','pehe_OW']
+                'bias_ate_dr','bias_ate_TIPW','bias_ate_MW','bias_ate_OW',\
+                    'pehe_TIPW','pehe_MW','pehe_OW',\
+                        'bias_ate_DR_IPW','bias_ate_DR_TIPW','bias_ate_DR_MW','bias_ate_DR_OW']
+            # TODO add weighted PEHE-NN metrics
     else:
         if binary:
             cols = ['policy_risk', 'bias_att', 'err_fact', 'objective', 'pehe_nn']
@@ -162,7 +131,7 @@ def evaluation_summary(result_set, row_labels, output_dir, labels_long=None, bin
 
     return s
 
-def select_parameters(results, configs, stop_set, stop_criterion, choice_set, choice_criterion):
+def select_parameters(results, configs, stop_set, stop_criterion, choice_set, choice_criterion,reps=None):
 
     if stop_criterion == 'objective' and 'objective' not in results[stop_set]:
         if 'err_fact' in results[stop_set]:
@@ -174,7 +143,8 @@ def select_parameters(results, configs, stop_set, stop_criterion, choice_set, ch
     n_exp = results[stop_set][stop_criterion].shape[1]
     i_sel = np.argmin(results[stop_set][stop_criterion],2)
     results_sel = {'train': {}, 'valid': {}, 'test': {}}
-
+    #TODO: make reps_sel dictionary here to save the representations
+    reps_sel = {'train':{},'valid':{},'test':{}}
     for k in results['valid'].keys():
         # To reduce dimension
         results_sel['train'][k] = np.sum(results['train'][k],2)
@@ -187,7 +157,8 @@ def select_parameters(results, configs, stop_set, stop_criterion, choice_set, ch
             for ie in range(n_exp):
                 results_sel['train'][k][ic,ie,] = results['train'][k][ic,ie,i_sel[ic,ie],]
                 results_sel['valid'][k][ic,ie,] = results['valid'][k][ic,ie,i_sel[ic,ie],]
-
+                #TODO: check if reps are saved
+                #TODO: if so, reps_sel['train'][ic,ie,] = reps[i_sel[ic,ie]] (or something like this, will need to test)
                 if k in results['test']:
                     results_sel['test'][k][ic,ie,] = results['test'][k][ic,ie,i_sel[ic,ie],]
 
@@ -200,14 +171,7 @@ def select_parameters(results, configs, stop_set, stop_criterion, choice_set, ch
 
     labels = ['%d' % i for i in range(len(configs))]
 
-    if PARETO_SELECTION:
-        reg_loss_vals = [np.mean(r[choice_set]['reg_loss']) for r in results_all]
-        imb_loss_vals = [np.mean(r[choice_set]['imb_loss']) for r in results_all]
-        loss_vals = [reg_loss_vals, imb_loss_vals]
-        criterion_vals = [np.mean(r[choice_set][choice_criterion]) for r in results_all]
-        sort_key = fast_nondom_sorting(loss_vals, criterion_vals)
-    else:
-        sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
+    sort_key = np.argsort([np.mean(r[choice_set][choice_criterion]) for r in results_all])
     results_all = [results_all[i] for i in sort_key]
     configs_all = [configs[i] for i in sort_key]
     labels = [labels[i] for i in sort_key]
@@ -270,7 +234,7 @@ def plot_option_correlation(output_dir, diff_opts, results, configs,
         plt.savefig('%s/opt.%s.%s.%s.pdf' % (opts_dir, choice_set, choice_criterion, k))
         plt.close()
 
-def plot_evaluation_cont(results, configs, output_dir, data_train_path, data_test_path, filters=None):
+def plot_evaluation_cont(results, configs, output_dir, data_train_path, data_test_path, filters=None,reps=None):
 
     # data_train = load_data(data_train_path)
     # data_test = load_data(data_test_path)
@@ -354,7 +318,7 @@ def plot_evaluation_bin(results, configs, output_dir, data_train_path, data_test
 
     ''' Save sorted configurations by parameters that differ '''
     diff_opts = sorted([k for k in configs[0] if len(set([cfg[k] for cfg in configs]))>1])
-    print('set',set([cfg['weight_norm'] for cfg in configs]))
+    # print('set',set([cfg['weight_norm'] for cfg in configs]))
     print('diff_opts',diff_opts)
     labels_long = [', '.join(['%s=%s' % (k,str(configs[i][k])) for k in diff_opts]) for i in sort_key]
 

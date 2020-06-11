@@ -28,13 +28,6 @@ def sample_config(configs):
 
 def cfg_string(cfg):
     ks = sorted(cfg.keys())
-    if cfg['imb_fun'] not in ['disc','weighted_disc']:
-        ks.remove('dim_disc')
-        ks.remove('n_disc')
-        ks.remove('drate')
-    if cfg['weight_scheme'] not in ['IPW','JIPW','MW','JMW','ParetoIPW','JParetoIPW','OW','IPW_trunc']:
-        ks.remove('dim_prop')
-        ks.remove('n_prop')
     cfg_str = ','.join(['%s:%s' % (k, str(cfg[k])) for k in ks])
     return cfg_str.lower()
 
@@ -63,7 +56,6 @@ def run(cfg_file, num_runs, ablation_var1):
 
     # list of possible values for the ablation variable
     ablation_values1 = configs[ablation_var1]
-    # ablation_values2 = configs[ablation_var2]
    
 
     if not os.path.isfile(used_cfg_file):
@@ -74,11 +66,6 @@ def run(cfg_file, num_runs, ablation_var1):
         cfg = sample_config(configs)
         for ablation_val1 in ablation_values1:
             cfg[ablation_var1] = ablation_val1
-            # for ablation_val2 in ablation_values2:
-
-            # replace the random value with ablation value
-                
-                # cfg[ablation_var2] = ablation_val2
             if is_used_cfg(cfg, used_cfg_file):
                 print ('Configuration used, skipping')
                 continue
@@ -91,14 +78,12 @@ def run(cfg_file, num_runs, ablation_var1):
             print ('\n'.join(['%s: %s' % (str(k), str(v)) for k,v in cfg.iteritems() if len(configs[k])>1]))
 
             flags = (' '.join('--%s %s' % (k,str(v)) for k,v in cfg.iteritems()))
-            # print ('python cfr_net_train.py %s' % flags)
-            # sys.exit()
+
             call('python cfr_net_train.py %s' % flags, shell=True)
             # with this, you get a fair ablation!
             # note: here "num_runs" is actually multiplied by number of possible values of ablation_var
 
 if __name__ == "__main__":
-    # if len(sys.argv) < 5:
     if len(sys.argv) < 4:
         print ('Usage: python cfr_param_search.py <config file> <num runs> <ablation var>')
     else:

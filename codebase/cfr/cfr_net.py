@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from train_disc import *
 from util import *
 
 class cfr_net(object):
@@ -72,8 +71,6 @@ class cfr_net(object):
         self.r_lambda = r_lambda
         self.do_in = do_in
         self.do_out = do_out
-        # prod = self.t*self.e
-        # print("HELLO",prod.get_shape())
         dim_input = dims[0]
         dim_in = dims[1]
         dim_out = dims[2]
@@ -132,10 +129,11 @@ class cfr_net(object):
         else:
             h_rep_norm = 1.0*h_rep
 
-        # self.Phi = h_rep_norm
         ''' Construct ouput layers '''
         y, weights_out, weights_pred = self._build_output_graph(h_rep_norm, t, dim_in, dim_out, do_out, FLAGS)
-
+        print('IN',weights_in)
+        print('OUT',weights_out)
+        print('PRED',weights_pred)
         ''' Compute sample reweighting '''
 
         if FLAGS.reweight_sample:
@@ -145,14 +143,9 @@ class cfr_net(object):
             JW = w_t + w_c
             if self.e != None:
                 IPW = 1/(t_sq*self.e + (1-t_sq)*(1-self.e))
-		#TruncIPW = tf.dtypes.cast(tf.math.greater(self.e, FLAGS.trunc_alpha), tf.float32)*tf.dtypes.cast(tf.math.less(self.e, 1-FLAGS.trunc_alpha), tf.float32)*IPW
-                #MW = tf.minimum(self.e, 1-self.e)*IPW
-		##OW = (self.e*(1-self.e))*IPW
-		#OW = t_sq*(1-self.e) + (1-t_sq)*self.e
                 truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<self.e,self.e<1.0-FLAGS.trunc_alpha),tf.float32)
                 TruncIPW = truncation*IPW
                 MW = tf.minimum(self.e, 1-self.e)*IPW
-		# OW = (self.e*(1-self.e))*IPW
                 OW = t_sq*(1-self.e) + (1-t_sq)*self.e
             if FLAGS.weight_scheme == 'JW':
                 sample_weight = JW
@@ -164,68 +157,18 @@ class cfr_net(object):
                 sample_weight = MW
             elif FLAGS.weight_scheme == 'OW':
                 sample_weight = OW
-            elif FLAGS.weight_scheme == 'JIPW':
-                sample_weight = JW*IPW
-            elif FLAGS.weight_scheme =='JMW':
-                sample_weight = JW*MW
-            elif FLAGS.weight_scheme == 'ParetoIPW':
-                sample_weight,k = Pareto_Smoothing(IPW)
-            elif FLAGS.weight_scheme == 'ParetoMW':
-                par,k = Pareto_Smoothing(IPW)
-                invPareto = 1/par
-                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
-                sample_weight = tf.minimum(e_smoothed,1-e_smoothed)*par
-            elif FLAGS.weight_scheme == 'ParetoOW':
-                par,k = Pareto_Smoothing(IPW)
-                invPareto = 1/par
-                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
-                sample_weight = t_sq*(1-e_smoothed) + (1-t_sq)*e_smoothed
-            elif FLAGS.weight_scheme == 'ParetoTruncIPW':
-                par,k = Pareto_Smoothing(IPW)
-                invPareto = 1/par
-                e_smoothed = t_sq*invPareto + (1-t_sq)*(1-invPareto)
-                truncation = tf.cast(tf.math.logical_and(FLAGS.trunc_alpha<e_smoothed,e_smoothed<1.0-FLAGS.trunc_alpha),tf.float32)
-                sample_weight = truncation*par
-            elif FLAGS.weight_scheme == 'JParetoIPW':
-                parIPW,k = Pareto_Smoothing(IPW)
-                sample_weight= JW*parIPW
             else:
                 sample_weight = 1.0
         else:
             sample_weight = 1.0
 
-         #### WARNING: TOGGLE HERE ###########
-        # norm = True
         if(FLAGS.weight_norm):
             i0 = tf.to_int32(tf.where(t < 1)[:,0])
             i1 = tf.to_int32(tf.where(t > 0)[:,0])
-            # TODO: make this cleaner
-            # sum0 = tf.reduce_sum(sample_weight[tf.where(t<1)])
-            # sum1 = tf.reduce_sum(sample_weight[tf.where(t>0)])
             self.sample_weight = sample_weight*tf.squeeze(tf.squeeze(t)/tf.reduce_sum(tf.gather(sample_weight,i1)) + tf.squeeze(1-t)/tf.reduce_sum(tf.gather(sample_weight,i0)))
-       ###############################
         else:
             self.sample_weight = sample_weight
 
-        # Define disc network here
-        self.disc_acc = None
-        if(FLAGS.imb_fun == 'disc' or FLAGS.imb_fun =='weighted_disc'):
-            disc_nn = Disc_NN(h_rep_norm, t, self.sample_weight, FLAGS)
-            self.disc_acc = disc_nn.disc_acc
-            # TODO: add "disc" attribute to disc_nn 
-            # TODO: opt.minimize(-disc, scope = "disc_vars")  
-            # 
-            #  
-        #####
-        ''' Compute sample reweighting '''
-        # if FLAGS.reweight_sample:
-        #     w_t = t/(2*p_t)
-        #     w_c = (1-t)/(2*1-p_t)
-        #     sample_weight = w_t + w_c
-        # else:
-        #     sample_weight = 1.0
-
-        # self.sample_weight = sample_weight
 
         ''' Construct factual loss function '''
         if FLAGS.loss == 'l1':
@@ -268,8 +211,8 @@ class cfr_net(object):
             p_ipm = self.p_t
         else:
             p_ipm = 0.5
-
-	if FLAGS.reweight_imb:
+            
+	if FLAGS.reweight_imb and FLAGS.weight_scheme!='JW':
             if FLAGS.imb_fun == 'mmd2_rbf':
             	imb_dist = mmd2_rbf(h_rep_norm,t,p_ipm,FLAGS.rbf_sigma,weights=self.sample_weight)
             	imb_error = r_alpha*imb_dist
@@ -290,9 +233,6 @@ class cfr_net(object):
             	imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,weights=self.sample_weight,its=FLAGS.wass_iterations,sq=True,backpropT=FLAGS.wass_bpt)
             	imb_error = r_alpha * imb_dist
             	self.imb_mat = imb_mat # FOR DEBUG
-            elif FLAGS.imb_fun == 'disc' or FLAGS.imb_fun=='weighted_disc':
-            	imb_dist = disc_nn.disc
-            	imb_error = r_alpha*imb_dist
             elif FLAGS.imb_fun =='no':
             	imb_dist = tf.constant(0.0)
             	imb_error = tf.constant(0.0)
@@ -320,9 +260,6 @@ class cfr_net(object):
                 imb_dist, imb_mat = wasserstein(h_rep_norm,t,p_ipm,lam=FLAGS.wass_lambda,its=FLAGS.wass_iterations,sq=True,backpropT=FLAGS.wass_bpt)
                 imb_error = r_alpha * imb_dist
                 self.imb_mat = imb_mat # FOR DEBUG
-            elif FLAGS.imb_fun == 'disc' or FLAGS.imb_fun=='weighted_disc':
-                imb_dist = disc_nn.disc
-                imb_error = r_alpha*imb_dist
             elif FLAGS.imb_fun =='no':
                 imb_dist = tf.constant(0.0)
                 imb_error = tf.constant(0.0)

@@ -1,0 +1,8 @@
+[1] "Method:  IPW"
+[1] "Using reps:  TRUE"
+[1] "Normalized:  unnormalized"
+[1] "sqrt(e_PEHE):  1.4886  +-  0.2856"
+[1] "e_ATE:  0.2044  +-  0.0319"
+[1] "TAU_CI:  0.7339  +-  0.0128"
+[1] "sqrt(e_PEHE.g):  1.4886  +-  0.2856"
+[1] "e_ATE.g:  0.2044  +-  0.0319"

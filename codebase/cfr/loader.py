@@ -45,11 +45,6 @@ def load_single_result(result_dir, filters=None):
     else:
         config = load_config(config_path)
 
-    # print(config)
-    # print (type(config))
-    
-    # sys.exit()
-
     if filters:
         for k, v in filters.items():
             if k in config:
@@ -61,25 +56,15 @@ def load_single_result(result_dir, filters=None):
     
     train_path = '%s/result.npz' % result_dir
     test_path = '%s/result.test.npz' % result_dir
-    # print('TRAIN',train_path)
-    # print('TEST',test_path)
 
     has_test = os.path.isfile(test_path)
 
     try:
-        # TODO: should weight_scheme not in ['IPW',...]
-        use_e = config['weight_scheme'] != 'JW'
-        train_results = load_result_file(train_path,use_e)
+        train_results = load_result_file(train_path,use_e=True)
     except:
         print('WARNING: Couldnt load result file. Skipping')
         return None
-    # print('TRAIN_RESULTS',type(train_results))
-    # print (config['repetitions'])
-    # print (config['repetitions'].shape)
-    # print (config['experiments'].shape)
-    # print (type(config['repetitions']))
-    # print (type(config['experiments']))
-    # sys.exit()
+    
     n_rep = np.max([config['repetitions'], config['experiments']])
 
     if len(train_results['pred'].shape) < 4 or train_results['pred'].shape[2] < n_rep:
@@ -87,7 +72,7 @@ def load_single_result(result_dir, filters=None):
         return None
 
     if has_test:
-        test_results = load_result_file(test_path)
+        test_results = load_result_file(test_path,use_e=True)
     else:
         test_results = None
 

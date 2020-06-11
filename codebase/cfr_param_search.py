@@ -28,15 +28,6 @@ def sample_config(configs):
 
 def cfg_string(cfg):
     ks = sorted(cfg.keys())
-    # print("hello")
-    # print(ks)
-    if cfg['imb_fun'] not in ['disc','weighted_disc']:
-        ks.remove('dim_disc')
-        ks.remove('n_disc')
-        ks.remove('drate')
-    if cfg['weight_scheme'] not in ['JW','IPW','JIPW','JMW','ParetoIPW','JParetoIPW']:
-        ks.remove('dim_prop')
-        ks.remove('n_prop')
     cfg_str = ','.join(['%s:%s' % (k, str(cfg[k])) for k in ks])
     return cfg_str.lower()
 
@@ -81,8 +72,6 @@ def run(cfg_file, num_runs):
         print ('\n'.join(['%s: %s' % (str(k), str(v)) for k,v in cfg.iteritems() if len(configs[k])>1]))
 
         flags = (' '.join('--%s %s' % (k,str(v)) for k,v in cfg.iteritems()))
-        # print ('python cfr_net_train.py %s' % flags)
-        # sys.exit()
         call('python cfr_net_train.py %s' % flags, shell=True)
 
 if __name__ == "__main__":
