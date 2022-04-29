@@ -1,6 +1,6 @@
-# Counterfactual Regression with Balancing Weights
+# Counterfactual Representation Learning with Balancing Weights
 
-This repository is the codebase for [Counterfactual Regression with Balancing Weights](https://proceedings.mlr.press/v130/assaad21a/assaad21a.pdf) (AISTATS 2021).
+This repository is the codebase for [Counterfactual Representation Learning with Balancing Weights](https://proceedings.mlr.press/v130/assaad21a/assaad21a.pdf) (AISTATS 2021).
 
 This code is implemented in Python using TensorFlow 1.13.1, and is largely based on https://github.com/clinicalml/cfrnet
 
